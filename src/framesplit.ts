@@ -310,14 +310,19 @@ class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
 
 	toPreview = (ctx: CanvasRenderingContext2D, color?: string) => {
 		const
-			{ left, top, right, bottom, children } = this,
-			x = left(),
-			y = top(),
-			w = right() - x,
-			h = bottom() - y
-		ctx.fillStyle = color ?? pick_color_iter.next().value
-		ctx.fillRect(x, y, w, h)
-		for (let ch = 0; ch < children.length; ch++) {
+			children = this.children,
+			children_len = children.length
+		if (children_len === 0) {
+			const
+				{ left, top, right, bottom } = this,
+				x = left(),
+				y = top(),
+				w = right() - x,
+				h = bottom() - y
+			ctx.fillStyle = color ?? pick_color_iter.next().value
+			ctx.fillRect(x, y, w, h)
+		}
+		for (let ch = 0; ch < children_len; ch++) {
 			children[ch].toPreview(ctx, ch === 0 ? "gray" : undefined)
 		}
 	}
