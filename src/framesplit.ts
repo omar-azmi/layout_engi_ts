@@ -68,6 +68,25 @@ const createSignalIfPrimitive = <T>(value: T | Accessor<T>): [get: Accessor<T>, 
 		[value as Accessor<T>, undefined] :
 		createSignal<T>(value)
 }
+const uniqueIndexes = (max_value: number, quantity: number) => {
+	const number_set = new Set<number>()
+	while (number_set.size < quantity) {
+		number_set.add(Math.floor(Math.random() * max_value))
+	}
+	return Array.from(number_set)
+}
+const pickUnique = function* <T>(arr: T[]) {
+	let
+		len = arr.length,
+		idxs = uniqueIndexes(len - 1, len - 1)
+	while (true) {
+		for (const i of idxs) {
+			yield arr[i]
+		}
+	}
+}
+const colors = ["aqua", "aquamarine", "antiquewhite", "blue", "brown", "blueviolet", "chartreuse", "crimson", "darkkhaki", "darkorange", "darksalmon", "fuchsia", "gold", "green", "orangered", "yellow", "yellowgreen"]
+const pick_color_iter = pickUnique(colors)
 
 class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
 	declare left: Accessor<number>
@@ -289,14 +308,34 @@ class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
 		return obj
 	}
 
-	toPreview = (ctx: CanvasRenderingContext2D) => {
-		console.log("YET TO IMPLEMENT")
+	toPreview = (ctx: CanvasRenderingContext2D, color?: string) => {
+		const
+			{ left, top, right, bottom, children } = this,
+			x = left(),
+			y = top(),
+			w = right() - x,
+			h = bottom() - y
+		ctx.fillStyle = color ?? pick_color_iter.next().value
+		ctx.fillRect(x, y, w, h)
+		for (let ch = 0; ch < children.length; ch++) {
+			children[ch].toPreview(ctx, ch === 0 ? "gray" : undefined)
+		}
 	}
 }
 
 // run
 
-const layout = new FrameSplit(0, 20, 200, 80)
-layout.splitChildLeft({ px: 30, vw: 0.5 })
-layout.splitChildRight({ vw: 0.25 }).splitChildTop("50px", { top: 10 })
-layout.splitChildBottom("10px + 0.25vh", { bottom: 10 })
+const layout = new FrameSplit(0, 100, 700, 700)
+layout.splitChildLeft({ px: 100, vw: 0.5 })
+layout.splitChildRight({ vw: 0.25 }).splitChildTop("200px", { top: 100 })
+layout.splitChildBottom("300px + 0.25vh", { bottom: 50 })
+
+const
+	canvas = document.createElement("canvas"),
+	ctx = canvas.getContext("2d") as CanvasRenderingContext2D
+
+canvas.setAttribute("style", "background-color: black;")
+canvas.width = 800
+canvas.height = 800
+document.body.appendChild(canvas)
+layout.toPreview(ctx)
