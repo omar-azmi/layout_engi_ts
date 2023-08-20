@@ -1,19 +1,33 @@
-import { Accessor, ConstructorOf, MethodsOf, Setter, Signal, CreateSignalOptions, createEffect, max, min, createSignal, createMemo, untrack, constructFrom } from "./deps.ts"
+import { Accessor, ConstructorOf, MethodsOf, Setter, Signal, CreateSignalOptions, createEffect, max, min, createSignal, createMemo, untrack } from "./deps.ts"
+
+const DEBUG = true
 
 type CombinationLiteral<A extends string, B extends string, SEP extends string = "+" | " + "> = A | `${A}${SEP}${B}` | B
 
 type PixelUnitLiteral = `${number}px`
 type ViewWidthUnitLiteral = `${number}vw`
 type ViewHeightUnitLiteral = `${number}vh`
-export type LengthUnitLiteral = CombinationLiteral<PixelUnitLiteral, CombinationLiteral<ViewWidthUnitLiteral, ViewHeightUnitLiteral>>
-export interface LengthUnit {
+type LengthUnitLiteral = CombinationLiteral<PixelUnitLiteral, CombinationLiteral<ViewWidthUnitLiteral, ViewHeightUnitLiteral>>
+interface LengthUnit {
 	px?: number
 	vw?: number
 	vh?: number
 }
 
+const add_controller = (
+	signal_getter: Accessor<LengthUnit>,
+	signal_setter: Setter<LengthUnit>,
+) => {
+	const controller = document.createElement("input")
+	controller.value = stringifyLengthUnit(signal_getter())
+	controller.addEventListener("input", () => {
+		signal_setter(parseLengthUnit(controller.value as LengthUnitLiteral))
+	})
+	document.body.appendChild(controller)
+}
+
 const length_unit_name_iter = ["px", "vw", "vh"] as const
-export const parseLengthUnit = (str: LengthUnitLiteral): LengthUnit => {
+const parseLengthUnit = (str: LengthUnitLiteral): LengthUnit => {
 	const length_units: Required<LengthUnit> = { px: 0, vw: 0, vh: 0 }
 	for (const unit_str of str.split("+")) {
 		const
@@ -24,7 +38,7 @@ export const parseLengthUnit = (str: LengthUnitLiteral): LengthUnit => {
 	}
 	return length_units
 }
-export const stringifyLengthUnit = (length_units: LengthUnit): LengthUnitLiteral => {
+const stringifyLengthUnit = (length_units: LengthUnit): LengthUnitLiteral => {
 	return length_unit_name_iter.map(
 		(unit_name) => (String(length_units[unit_name] ?? 0) + unit_name)
 	).join(" + ") as LengthUnitLiteral
@@ -88,7 +102,7 @@ const pickUnique = function* <T>(arr: T[]) {
 const colors = ["aqua", "aquamarine", "antiquewhite", "blue", "brown", "blueviolet", "chartreuse", "crimson", "darkkhaki", "darkorange", "darksalmon", "fuchsia", "gold", "green", "orangered", "yellow", "yellowgreen"]
 const pick_color_iter = pickUnique(colors)
 
-export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
+class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
 	declare left: Accessor<number>
 	declare top: Accessor<number>
 	declare right: Accessor<number>
@@ -102,7 +116,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		height?: Setter<LengthUnit>,
 	}
 
-	children: FrameSplit[] = []
+	children: FrameSplit[]
 
 	constructor(
 		left: AnyNumber,
@@ -122,30 +136,32 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 			set[dim_name] = dim_setter
 		}
 		this.set = set
+		this.children = []
 	}
 
-	getFreespaceChild(): FrameSplit {
+	getFreespaceChild = (): FrameSplit => {
 		const
 			{ children } = this,
 			len = children.length
 		if (len > 0) { return children[0] }
 		const
 			{ left, top, right, bottom } = this,
-			freespace_child = constructFrom(this, left, top, right, bottom)
+			freespace_child = new FrameSplit(left, top, right, bottom)
 		children.push(freespace_child)
 		return freespace_child
 	}
 
-	splitChildLeft(
+	splitChildLeft = (
 		width: LengthUnit | LengthUnitLiteral,
 		margin: DimensionXValue = {},
-	) {
+	) => {
 		if (typeof margin !== "function") {
 			margin.left ??= 0
 			margin.right ??= 0
 		}
 		const
-			freespace = this.getFreespaceChild(),
+			{ getFreespaceChild, children } = this,
+			freespace = getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
 			[getWidth, setWidth] = createSignalIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
 			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
@@ -163,26 +179,28 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 					{ px = 0, vw = 0, vh = 0 } = getWidth()
 				return min(l + px + (r - l) * vw + (b - t) * vh, r)
 			}),
-			child_framesplit = constructFrom(this, child_left, top, child_right, bottom)
+			child_framesplit = new FrameSplit(child_left, top, child_right, bottom)
 		child_framesplit.margin = getMargin
 		child_framesplit.width = getWidth
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.width = setWidth
 		freespace.left = createMemo(() => min(child_right() + getMargin().right, right()))
-		this.children.push(child_framesplit)
+		children.push(child_framesplit)
+		if (DEBUG) { add_controller(getWidth, setWidth!) }
 		return child_framesplit
 	}
 
-	splitChildTop(
+	splitChildTop = (
 		height: LengthUnit | LengthUnitLiteral,
 		margin: DimensionYValue = {},
-	) {
+	) => {
 		if (typeof margin !== "function") {
 			margin.top ??= 0
 			margin.bottom ??= 0
 		}
 		const
-			freespace = this.getFreespaceChild(),
+			{ getFreespaceChild, children } = this,
+			freespace = getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
 			[getHeight, setHeight] = createSignalIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
 			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
@@ -200,26 +218,28 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 					{ px = 0, vw = 0, vh = 0 } = getHeight()
 				return min(t + px + (r - l) * vw + (b - t) * vh, b)
 			}),
-			child_framesplit = constructFrom(this, left, child_top, right, child_bottom)
+			child_framesplit = new FrameSplit(left, child_top, right, child_bottom)
 		child_framesplit.margin = getMargin
 		child_framesplit.height = getHeight
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.height = setHeight
 		freespace.top = createMemo(() => min(child_bottom() + getMargin().bottom, bottom()))
-		this.children.push(child_framesplit)
+		children.push(child_framesplit)
+		if (DEBUG) { add_controller(getHeight, setHeight!) }
 		return child_framesplit
 	}
 
-	splitChildRight(
+	splitChildRight = (
 		width: LengthUnit | LengthUnitLiteral,
 		margin: DimensionXValue = {},
-	) {
+	) => {
 		if (typeof margin !== "function") {
 			margin.left ??= 0
 			margin.right ??= 0
 		}
 		const
-			freespace = this.getFreespaceChild(),
+			{ getFreespaceChild, children } = this,
+			freespace = getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
 			[getWidth, setWidth] = createSignalIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
 			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
@@ -237,26 +257,28 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 				const { left: ml = 0, right: mr = 0 } = getMargin()
 				return max(left() + ml, right() - mr)
 			}),
-			child_framesplit = constructFrom(this, child_left, top, child_right, bottom)
+			child_framesplit = new FrameSplit(child_left, top, child_right, bottom)
 		child_framesplit.margin = getMargin
 		child_framesplit.width = getWidth
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.width = setWidth
 		freespace.right = createMemo(() => max(child_left() + getMargin().left, left()))
-		this.children.push(child_framesplit)
+		children.push(child_framesplit)
+		if (DEBUG) { add_controller(getWidth, setWidth!) }
 		return child_framesplit
 	}
 
-	splitChildBottom(
+	splitChildBottom = (
 		height: LengthUnit | LengthUnitLiteral,
 		margin: DimensionYValue = {},
-	) {
+	) => {
 		if (typeof margin !== "function") {
 			margin.top ??= 0
 			margin.bottom ??= 0
 		}
 		const
-			freespace = this.getFreespaceChild(),
+			{ getFreespaceChild, children } = this,
+			freespace = getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
 			[getHeight, setHeight] = createSignalIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
 			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
@@ -274,21 +296,22 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 				const { top: mt = 0, bottom: mb = 0 } = getMargin()
 				return max(top() + mt, bottom() - mb)
 			}),
-			child_framesplit = constructFrom(this, left, child_top, right, child_bottom)
+			child_framesplit = new FrameSplit(left, child_top, right, child_bottom)
 		child_framesplit.margin = getMargin
 		child_framesplit.height = getHeight
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.height = setHeight
 		freespace.bottom = createMemo(() => max(child_top() + getMargin().top, top()))
-		this.children.push(child_framesplit)
+		children.push(child_framesplit)
+		if (DEBUG) { add_controller(getHeight, setHeight!) }
 		return child_framesplit
 	}
 
-	toString(): Object {
+	toString = (): Object => {
 		const
 			{ left, top, right, bottom, margin, width, height, set, children } = this,
 			setters: string[] = [],
-			obj: { [prop: string]: any } = {
+			obj = {
 				setters,
 				position: [left(), top(), right(), bottom()],
 			}
@@ -303,7 +326,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		return obj
 	}
 
-	toPreview(ctx: CanvasRenderingContext2D, color?: string) {
+	toPreview = (ctx: CanvasRenderingContext2D, color?: string) => {
 		const
 			children = this.children,
 			children_len = children.length
@@ -321,4 +344,26 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 			children[ch].toPreview(ctx, ch === 0 ? "gray" : undefined)
 		}
 	}
+}
+
+// run
+if (DEBUG) {
+	const layout = new FrameSplit(0, 100, 700, 700)
+	layout.splitChildLeft({ px: 100, vw: 0.5 })
+	layout.splitChildRight({ vw: 0.25 }).splitChildTop("200px", { top: 100 })
+	layout.splitChildBottom("300px + 0.25vh", { bottom: 50 })
+
+	const
+		canvas = document.createElement("canvas"),
+		ctx = canvas.getContext("2d") as CanvasRenderingContext2D
+
+	canvas.setAttribute("style", "background-color: black;")
+	canvas.width = 800
+	canvas.height = 800
+	document.body.appendChild(canvas)
+	const animate = () => {
+		ctx.clearRect(0, 0, 10000, 10000)
+		layout.toPreview(ctx)
+	}
+	const animate_interval_id = setInterval(requestAnimationFrame, 1000 / 15, animate)
 }
