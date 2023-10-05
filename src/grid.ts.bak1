@@ -1,4 +1,4 @@
-import { Accessor, createMemo, createSignal, createEffect, batch, untrack, pauseEffect, resumeEffect, Setter, resumeReactivity, pauseReactivity } from "./deps.ts"
+import { Accessor, createMemo, createSignal, createEffect, batch, Setter } from "./deps.ts"
 import { Array2DShape, spliceArray2DMajor, spliceArray2DMinor, rotateArray2DMajor, rotateArray2DMinor, Array2D, Array2DRowMajor, Array2DColMajor } from "./deps.ts"
 import { max, min, sum, cumulativeSum } from "./deps.ts"
 import { math_max, math_min, math_abs, math_sin, math_cos } from "https://deno.land/x/kitchensink_ts@v0.6.4/builtin_aliases.ts"
@@ -104,9 +104,9 @@ class Grid implements NonNullable<GridInit> {
 	setDirty!: Setter<undefined>
 	cells!: Array2DRowMajor<GridCell>
 
-	private getColWidths: Accessor<number[]>
-	private getRowHeights: Accessor<number[]>
-	public getCellFrames: Accessor<CellFrameInfo[][]>
+	private colWidths: Accessor<number[]>
+	private rowHeights: Accessor<number[]>
+	public cellFrames: Accessor<CellFrameInfo[][]>
 
 	constructor(config: GridInit) {
 		const
@@ -126,16 +126,16 @@ class Grid implements NonNullable<GridInit> {
 			isDirty, setDirty, cells,
 		})
 
-		this.getColWidths = createMemo<number[]>(() => {
+		this.colWidths = createMemo<number[]>(() => {
 			this.isDirty()
 			console.log("recomputing colWidths")
 			const
-				{ cols, colWidth } = this,
+				{ cols, colWidth, getCol } = this,
 				colWidth_len = colWidth.length,
 				max_widths = Array(cols).fill(0)
 			for (let c = 0; c < cols; c++) {
 				const default_width = colWidth[c % colWidth_len]
-				max_widths[c] = math_max(...this.getCol(c).map((cell) => {
+				max_widths[c] = math_max(...getCol(c).map((cell) => {
 					const { width, height = 0, rotation } = cell
 					return width !== undefined ?
 						get_rotated_bound_box(width, height, rotation).width :
@@ -145,16 +145,16 @@ class Grid implements NonNullable<GridInit> {
 			return max_widths
 		})
 
-		this.getRowHeights = createMemo<number[]>(() => {
+		this.rowHeights = createMemo<number[]>(() => {
 			this.isDirty()
 			console.log("recomputing rowHeights")
 			const
-				{ rows, rowHeight } = this,
+				{ rows, rowHeight, getRow } = this,
 				rowHeight_len = rowHeight.length,
 				max_heights = Array(rows).fill(0)
 			for (let r = 0; r < rows; r++) {
 				const default_height = rowHeight[r % rowHeight_len]
-				max_heights[r] = math_max(...this.getRow(r).map((cell) => {
+				max_heights[r] = math_max(...getRow(r).map((cell) => {
 					const { width = 0, height, rotation } = cell
 					return height !== undefined ?
 						get_rotated_bound_box(width, height, rotation).height :
@@ -164,16 +164,16 @@ class Grid implements NonNullable<GridInit> {
 			return max_heights
 		})
 
-		this.getCellFrames = createMemo<CellFrameInfo[][]>(() => {
+		this.cellFrames = createMemo<CellFrameInfo[][]>(() => {
 			console.log("recomputing cellFrames")
 			const
-				{ rows, cols, cells, colGap, rowGap, colAlign: colAlignGlobal, rowAlign: rowAlignGlobal, getColWidths, getRowHeights } = this,
+				{ rows, cols, cells, colGap, rowGap, colAlign: colAlignGlobal, rowAlign: rowAlignGlobal } = this,
 				colGap_len = colGap.length,
 				rowGap_len = rowGap.length,
 				colAlignGlobal_len = colAlignGlobal.length,
 				rowAlignGlobal_len = rowAlignGlobal.length,
-				colWidths = getColWidths(),
-				rowHeights = getRowHeights(),
+				colWidths = this.colWidths(),
+				rowHeights = this.rowHeights(),
 				left_vals = zeroCumulativeSum(colWidths.map((col_width, c) => col_width + colGap[c % colGap_len])),
 				top_vals = zeroCumulativeSum(rowHeights.map((row_height, r) => row_height + rowGap[r % rowGap_len])),
 				cell_frames: CellFrameInfo[][] = Array(rows).fill(undefined).map(() => Array(cols).fill(undefined))
@@ -211,18 +211,18 @@ class Grid implements NonNullable<GridInit> {
 		//this.setDirty()
 	}
 
-	getCellFrame(row: number, col: number): CellFrameInfo {
-		const { rows, cols, getCellFrames } = this
-		return getCellFrames()[row % rows][col % cols]
+	cellFrame = (row: number, col: number): CellFrameInfo => {
+		const { rows, cols, cellFrames } = this
+		return cellFrames()[row % rows][col % cols]
 	}
 
-	getRow(row: number) { return this.cells[row] }
+	getRow = (row: number) => { return this.cells[row] }
 
-	getCol(col: number) { return this.cells.map((row) => row[col]) }
+	getCol = (col: number) => { return this.cells.map((row) => row[col]) }
 
-	getCell(row: number, col: number) { return this.cells[row][col] }
+	getCell = (row: number, col: number) => { return this.cells[row][col] }
 
-	setCell(row: number, col: number, value: GridCell) {
+	setCell = (row: number, col: number, value: GridCell) => {
 		this.cells[row][col] = value
 		this.setDirty()
 	}
@@ -232,7 +232,7 @@ class Grid implements NonNullable<GridInit> {
 	 * the row-major grid of deleted cells is then returned. <br>
 	 * also, a dirty signal is triggered in the end of the process.
 	*/
-	spliceRows(start: number, delete_count?: number, ...insert_rows_of_cells: Array2DRowMajor<GridCell>): Array2DRowMajor<GridCell> {
+	spliceRows = (start: number, delete_count?: number, ...insert_rows_of_cells: Array2DRowMajor<GridCell>): Array2DRowMajor<GridCell> => {
 		const
 			{ cells, setDirty } = this,
 			deleted_rows = spliceArray2DMajor(cells, start, delete_count, ...insert_rows_of_cells),
@@ -247,7 +247,7 @@ class Grid implements NonNullable<GridInit> {
 	 * the column-major grid of deleted cells is then returned. <br>
 	 * also, a dirty signal is triggered in the end of the process.
 	*/
-	spliceCols(start: number, delete_count?: number, ...cols_of_cells: Array2DColMajor<GridCell>): Array2DColMajor<GridCell> {
+	spliceCols = (start: number, delete_count?: number, ...cols_of_cells: Array2DColMajor<GridCell>): Array2DColMajor<GridCell> => {
 		const
 			{ cells, setDirty } = this,
 			deleted_cols = spliceArray2DMinor(cells, start, delete_count, ...cols_of_cells),
@@ -257,14 +257,14 @@ class Grid implements NonNullable<GridInit> {
 		return deleted_cols
 	}
 
-	rotateRows(amount: number): void {
+	rotateRows = (amount: number): void => {
 		const { cells, setDirty } = this
 		rotateArray2DMajor(cells, amount)
 		setDirty()
 		return
 	}
 
-	rotateCols(amount: number): void {
+	rotateCols = (amount: number): void => {
 		const { cells, setDirty } = this
 		rotateArray2DMinor(cells, amount)
 		setDirty()
@@ -272,7 +272,7 @@ class Grid implements NonNullable<GridInit> {
 	}
 
 	/** push in row-major grid of cells to increase row size. also triggers a dirty signal */
-	pushRows(...rows_of_cells: Array2DRowMajor<GridCell>): number {
+	pushRows = (...rows_of_cells: Array2DRowMajor<GridCell>): number => {
 		const
 			{ rows, cols } = this,
 			[rows_added, cols_added] = Array2DShape(rows_of_cells),
@@ -287,7 +287,7 @@ class Grid implements NonNullable<GridInit> {
 	}
 
 	/** push in column-major grid of cells to increase column size. also triggers a dirty signal */
-	pushCols(...cols_of_cells: Array2DColMajor<GridCell>): number {
+	pushCols = (...cols_of_cells: Array2DColMajor<GridCell>): number => {
 		const
 			{ rows, cols } = this,
 			[cols_added, rows_added] = Array2DShape(cols_of_cells),
@@ -302,7 +302,7 @@ class Grid implements NonNullable<GridInit> {
 	}
 
 	/** unshift (left push) in row-major grid of cells to increase row size. also triggers a dirty signal */
-	unshiftRows(...rows_of_cells: Array2DRowMajor<GridCell>): number {
+	unshiftRows = (...rows_of_cells: Array2DRowMajor<GridCell>): number => {
 		const
 			{ rows, cols } = this,
 			[rows_added, cols_added] = Array2DShape(rows_of_cells),
@@ -317,7 +317,7 @@ class Grid implements NonNullable<GridInit> {
 	}
 
 	/** unshift (left push) column-major grid of cells to increase column size. also triggers a dirty signal */
-	unshiftCols(...cols_of_cells: Array2DColMajor<GridCell>): number {
+	unshiftCols = (...cols_of_cells: Array2DColMajor<GridCell>): number => {
 		const
 			{ rows, cols } = this,
 			[cols_added, rows_added] = Array2DShape(cols_of_cells),
@@ -332,33 +332,30 @@ class Grid implements NonNullable<GridInit> {
 	}
 
 	/** pop `amount` number of rows from the grid, and return a grid of row-major cells. also triggers a dirty signal */
-	popRows(amount: number = 1): Array2DRowMajor<GridCell> {
+	popRows = (amount: number = 1): Array2DRowMajor<GridCell> => {
 		return this.spliceRows(this.rows - amount, amount)
 	}
 
 	/** pop `amount` number of cols from the grid, and return a grid of column-major cells. also triggers a dirty signal */
-	popCols(amount: number = 1): Array2DColMajor<GridCell> {
+	popCols = (amount: number = 1): Array2DColMajor<GridCell> => {
 		return this.spliceCols(this.cols - amount, amount)
 	}
 
 	/** shift (left pop) `amount` number of rows from the grid, and return a grid of row-major cells. also triggers a dirty signal */
-	shiftRows(amount: number = 1): Array2DRowMajor<GridCell> {
+	shiftRows = (amount: number = 1): Array2DRowMajor<GridCell> => {
 		return this.spliceRows(0, amount)
 	}
 
 	/** shift (left pop) `amount` number of cols from the grid, and return a grid of column-major cells. also triggers a dirty signal */
-	shiftCols(amount: number = 1): Array2DColMajor<GridCell> {
+	shiftCols = (amount: number = 1): Array2DColMajor<GridCell> => {
 		return this.spliceCols(0, amount)
 	}
 
-	static fromCells(cells: Array2DRowMajor<GridCell>, config?: Omit<GridInit, "rows" | "cols">): Grid {
+	static fromCells = (cells: Array2DRowMajor<GridCell>, config?: Omit<GridInit, "rows" | "cols">): Grid => {
 		const
 			[rows, cols] = Array2DShape(cells),
 			grid = new this({ rows: 0, cols, ...config })
-		//pauseReactivity()
 		grid.pushRows(...cells)
-		//resumeReactivity()
-		//grid.setDirty()
 		return grid
 	}
 }
@@ -373,4 +370,4 @@ const grid = Grid.fromCells([
 	[{ width: 1, height: 92 }, { width: 5, height: 14 }, { width: 10, height: 41 }],
 ], { colAlign: ["end"], rowAlign: ["center"] })
 
-grid.getCellFrames()
+grid.cellFrames()

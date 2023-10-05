@@ -1,0 +1,179 @@
+type MapKeyType = keyof any
+type Edge<ID extends MapKeyType, FROM = ID, TO = ID> = [from: FROM, to: TO]
+type VertexEdges<ID extends MapKeyType, FROM = ID, TO = ID> = Set<TO>
+type GraphEdges<ID extends MapKeyType, FROM = ID, TO = ID> = Map<FROM, VertexEdges<ID, FROM, TO>>
+type GetVertexEdges<ID extends MapKeyType, FROM = ID, TO = ID> = (id: FROM) => Set<TO> | undefined
+
+const
+	bind_factory = /*@__PURE__*/ <T, FN extends (this: T, ...args: any[]) => any>(func: FN) => ((thisArgs: T) => func.bind(thisArgs)) as ((thisArgs: T) => FN),
+	array_proto = /*@__PURE__*/ Array.prototype,
+	map_proto = /*@__PURE__*/ Map.prototype,
+	set_proto = /*@__PURE__*/ Set.prototype,
+	array_pop_bind: <T>(thisArg: Array<T>) => Array<T>["pop"] = /*@__PURE__*/ bind_factory(array_proto.pop),
+	array_push_bind: <T>(thisArg: Array<T>) => Array<T>["push"] = /*@__PURE__*/ bind_factory(array_proto.push),
+	array_at_bind: <T>(thisArg: Array<T>) => Array<T>["at"] = /*@__PURE__*/ bind_factory(array_proto.at),
+	map_get_bind: <K, V>(thisArg: Map<K, V>) => Map<K, V>["get"] = /*@__PURE__*/ bind_factory(map_proto.get),
+	map_has_bind: <K, V>(thisArg: Map<K, V>) => Map<K, V>["has"] = /*@__PURE__*/ bind_factory(map_proto.has),
+	map_set_bind: <K, V>(thisArg: Map<K, V>) => Map<K, V>["set"] = /*@__PURE__*/ bind_factory(map_proto.set),
+	map_delete_bind: <K, V>(thisArg: Map<K, V>) => Map<K, V>["delete"] = /*@__PURE__*/ bind_factory(map_proto.delete),
+	set_delete_bind: <T>(thisArg: Set<T>) => Set<T>["delete"] = /*@__PURE__*/ bind_factory(set_proto.delete),
+	set_add_bind: <T>(thisArg: Set<T>) => Set<T>["add"] = /*@__PURE__*/ bind_factory(set_proto.add),
+	set_has_bind: <T>(thisArg: Set<T>) => Set<T>["has"] = /*@__PURE__*/ bind_factory(set_proto.has)
+
+/** get the root node ids among some collection of ids `all_node_ids` <br>
+ * a `get_node_deps` function must be passed which should be capable of pulling the dependent node ids of a cetain given parent node id. <br>
+*/
+const getRootNodes = <ID extends MapKeyType>(get_node_deps: GetVertexEdges<ID>, all_node_ids: Iterable<ID> = []) => {
+	const
+		root_ids = new Set<ID>(all_node_ids),
+		delete_root_ids = set_delete_bind(root_ids)
+	for (const id of all_node_ids) {
+		// `out_id` is the name of the dependent node's id
+		for (const out_id of get_node_deps(id) ?? []) {
+			delete_root_ids(out_id)
+		}
+	}
+	return [...root_ids]
+}
+
+const topologicalOrder_Factory = <ID extends MapKeyType>(get_node_deps: GetVertexEdges<ID>, all_node_ids?: ID[]) => {
+	const topologicalOrder = (source_ids: ID[] = getRootNodes(get_node_deps, all_node_ids), visited_ids?: ID[]): ID[] => {
+		const
+			visited = new Set(visited_ids),
+			has_visited = set_has_bind(visited),
+			add_visited = set_add_bind(visited),
+			delete_visited = set_delete_bind(visited),
+			recursive_dfs_visiter = (id: ID) => {
+				for (const out_id of get_node_deps(id) ?? []) {
+					if (!has_visited(out_id)) {
+						recursive_dfs_visiter(out_id)
+					}
+				}
+				add_visited(id)
+			}
+		source_ids.forEach(recursive_dfs_visiter)
+		visited_ids?.forEach(delete_visited)
+		return [...visited].reverse()
+	}
+	return topologicalOrder
+}
+
+interface TraversalState<ID extends MapKeyType> {
+	sources: Set<ID>
+	visited: Set<ID>
+	current?: ID
+	next: Iterable<ID>
+}
+
+class TopologicalSorter<ID extends MapKeyType> {
+	get_edges: GetVertexEdges<ID>
+
+	declare state: TraversalState<ID>
+	reset = (source_ids: Iterable<ID>, block_ids: Iterable<ID>) => {
+		this.state = {
+			sources: new Set(source_ids),
+			visited: new Set(block_ids),
+			current: undefined,
+			next: []
+		}
+	}
+	step = (): ID => {
+
+	}
+
+	*traversalStack(): Generator<ID | undefined, void, ID> {
+		const
+			{ get_edges } = this,
+			sources = new Set(),
+			visited = new Set(),
+			has_visited = set_has_bind(visited),
+			add_visited = set_add_bind(visited),
+			delete_visited = set_delete_bind(visited),
+			stack: ID[] = [],
+			pop_stack = array_pop_bind(stack),
+			push_stack = array_push_bind(stack),
+			recursive_dfs_visiter = (id: ID) => {
+				for (const out_id of get_edges(id) ?? []) {
+					if (!has_visited(out_id)) {
+						recursive_dfs_visiter(out_id)
+					}
+				}
+				add_visited(id)
+				push_stack(id)
+			},
+			recursive_dfs_unvisiter = (id: ID) => {
+
+			}
+		let command
+		while (true) {
+			command = yield pop_stack()
+			sources.add()
+		}
+
+		sources.forEach(recursive_dfs_visiter)
+		block_ids?.forEach(delete_visited)
+		return [...visited]
+	}
+
+	update: () => void
+	_root_vertexs: Set<ID>
+
+
+	constructor(
+		private edges: GraphEdges<ID, ID>,
+		public cache: boolean = true
+	) {
+		this.get_edges = map_get_bind(edges)
+	}
+
+
+
+
+}
+
+const topologicalOrder_Factory2 = <ID extends MapKeyType>(node_deps_graph: GraphEdges<ID>) => {
+	const get_node_deps = map_get_bind(node_deps_graph) as GetVertexEdges<ID>
+	const topologicalOrder = (
+		source_ids: ID[] = getRootNodes(get_node_deps, node_deps_graph.keys()),
+		visited_ids?: ID[]
+	): ID[] => {
+		const
+			visited = new Set(visited_ids),
+			has_visited = set_has_bind(visited),
+			add_visited = set_add_bind(visited),
+			delete_visited = set_delete_bind(visited),
+			recursive_dfs_visiter = (id: ID) => {
+				for (const out_id of get_node_deps(id) ?? []) {
+					if (!has_visited(out_id)) {
+						recursive_dfs_visiter(out_id)
+					}
+				}
+				add_visited(id)
+			}
+		source_ids.forEach(recursive_dfs_visiter)
+		visited_ids?.forEach(delete_visited)
+		return [...visited].reverse()
+	}
+	return topologicalOrder
+}
+
+const S = <T>(...items: T[]) => new Set<T>(items)
+
+const nodes: GraphEdges<string> = new Map([
+	["A", S("D", "H")],
+	["B", S("E")],
+	["C", S("E", "F")],
+	["D", S("E", "G")],
+	["E", S("G")],
+	["F", S("E", "I")],
+	["G", S("H")],
+])
+const top_sorter = topologicalOrder_Factory(map_get_bind(nodes), ["A", "B", "C"])
+console.log(top_sorter())
+nodes.get("B")?.add("J")
+nodes.get("C")?.add("J")
+nodes.get("E")?.add("J")
+console.log(top_sorter())
+
+
+

@@ -1,0 +1,222 @@
+const enum NODE_TYPE {
+	STATE = 0,
+	LAZY = 1,
+	MEMO = 2,
+	EFFECT = 3,
+}
+const NODE_TYPE_LEN = 4 as const
+type StateID = NODE_TYPE.STATE | number
+type LazyID = NODE_TYPE.LAZY | number
+type MemoID = NODE_TYPE.MEMO | number
+type EffectID = NODE_TYPE.EFFECT | number
+type SignalerID = StateID | LazyID | MemoID
+type ObserverID = LazyID | MemoID | EffectID
+type NodeID = SignalerID | ObserverID
+
+type Accessor<T> = (observer_id?: ObserverID) => T
+type Setter<T> = (value: T) => void
+type Runner = () => void
+type AccessorSetter<T> = [Accessor<T>, Setter<T>]
+export type LazyFn<T> = (observer_id?: ObserverID) => T
+export type MemoFn<T> = (observer_id?: ObserverID) => T
+export type EffectFn = (observer_id?: ObserverID) => void
+
+type NormalFloat = number
+
+/** type definition for a value equality check function. */
+export type EqualityFn<T> = (prev_value: T | undefined, new_value: T) => NormalFloat
+
+/** type definition for an equality check specification. <br>
+ * when `undefined`, javascript's regular `===` equality will be used. <br>
+ * when `false`, equality will always be evaluated to false, meaning that setting any value will always fire a signal, even if it's equal.
+*/
+export type EqualityCheck<T> = undefined | false | EqualityFn<T>
+
+
+export interface Node<T> {
+	id: NodeID | undefined
+	fn?: LazyFn<T> | MemoFn<T> | EffectFn
+	value?: T
+	equals?: EqualityFn<T>
+	dirty?: boolean
+	run?: Runner
+	set?: Setter<T>
+	get?: Accessor<T>
+}
+export interface State<T> extends Omit<Node<T>, "fn" | "dirty" | "run"> {
+	id: StateID | undefined
+	value: T
+	equals: EqualityFn<T>
+	set: Setter<T>
+	get: Accessor<T>
+}
+export interface Lazy<T> extends Omit<Node<T>, "equals" | "set"> {
+	id: LazyID | undefined
+	fn: LazyFn<T>
+	value?: T
+	dirty: boolean
+	run: Runner
+	get: Accessor<T>
+}
+export interface Memo<T> extends Omit<Node<T>, "dirty" | "set"> {
+	id: MemoID | undefined
+	fn: MemoFn<T>
+	value?: T
+	equals: EqualityFn<T>
+	run: Runner
+	get: Accessor<T>
+}
+export interface Effect extends Omit<Node<never>, "value" | "equals" | "dirty" | "set" | "get"> {
+	id: EffectID | undefined
+	fn: EffectFn
+	run: Runner
+}
+
+/** represents options when creating a state via {@link createState}. */
+export interface CreateStateOptions<T> {
+	/** when a state's value is updated through a {@link Setter}, then the observers/dependants of
+	 * THIS state will only be notified if the equality check function evaluates to a `false`. <br>
+	 * see {@link EqualityCheck} to see its function signature and default behavior when left `undefined`
+	*/
+	equals?: EqualityCheck<T>
+}
+
+/** represents options when creating a lazy computation via {@link createLazy}. */
+export interface CreateLazyOptions<T> { }
+
+/** represents options when creating a memo via {@link createMemo}. */
+export interface CreateMemoOptions<T> {
+	/** when a memo's value is updated through a notification by its one of its dependancy signal,
+	 * then the observers/dependants of THIS memo will only be notified if the equality check function evaluates to a `false`. <br>
+	 * see {@link EqualityCheck} to see its function signature and default behavior when left `undefined`
+	*/
+	equals?: EqualityCheck<T>
+	/** specify initial value for {@link equals} to use when doing the very first comparison of equality. */
+	value?: T
+	defer?: boolean
+}
+
+/** represents options when creating an effect node via {@link createEffect}. */
+export interface CreateEffectOptions {
+	/** when `true`, the effect function {@link EffectFn} will not be run immediately (ie the first execution will be skipped),
+	 * and its execution will be put off until one of its dependancy signal notifies of an updated value. <br>
+	 * by default, `defer` is `false`, and effects are immediately executed during initialization. <br>
+	 * the reason why you might want to defer an effect is because the body of the effect function may contain symbols/variables
+	 * that have not been defined yet, in which case an error will be raised, unless you choose to defer the first execution. <br>
+	*/
+	defer?: boolean
+}
+
+const
+	default_equality = (<T>(v1: T, v2: T) => +(v1 === v2)) satisfies EqualityFn<any>,
+	falsey_equality = (<T>(v1: T, v2: T) => 0) satisfies EqualityFn<any>,
+	isStateID = (id: NodeID): id is NODE_TYPE.STATE => (id % NODE_TYPE_LEN === 0),
+	isLazyID = (id: NodeID): id is NODE_TYPE.LAZY => (id % NODE_TYPE_LEN === 1),
+	isMemoID = (id: NodeID): id is NODE_TYPE.MEMO => (id % NODE_TYPE_LEN === 2),
+	isEffectID = (id: NodeID): id is NODE_TYPE.EFFECT => (id % NODE_TYPE_LEN === 3),
+	isSignalerID = (id: NodeID): id is (NODE_TYPE.STATE | NODE_TYPE.LAZY | NODE_TYPE.MEMO) => (id % NODE_TYPE_LEN < 3),
+	isObserverID = (id: NodeID): id is (NODE_TYPE.LAZY | NODE_TYPE.MEMO | NODE_TYPE.EFFECT) => (id % NODE_TYPE_LEN > 0)
+
+const createContext = () => {
+	let id_counter: StateID = -NODE_TYPE_LEN
+	const
+		increment_id_counter = (): number => (id_counter += NODE_TYPE_LEN),
+		all_nodes: Map<NodeID, Node<any>> = new Map(),
+		// the observers (values) of each signaler node (keys).
+		// the observers' ids are guaranteed to be sorted in the order of their scheduled execution (as defined by `scheduled_observers`)
+		signal_observers: Map<SignalerID, ObserverID[]> = new Map(),
+		// scheduled nodes are ordered according to their topological ordering (look it up on wikipedia).
+		// meaning that that when traversing `scheduled_observers`, you are guaranteed to have always previously encountered any dependency of the current node id.
+		scheduled_observers: ObserverID[] = [],
+		// sets maintain the order of insertion when iterated,
+		// which is a property that we need for the reactions to run based on their scheduled order.
+		queued_reruns: Set<ObserverID> = new Set()
+
+
+	/** add a new observer to the scheduler `scheduled_observers` at the appropriate index location,
+	 * such that all of its dependency signals come before it in the schedule.
+	*/
+	const schedule_new_observer = (id: ObserverID, dependencies: NodeID[]) => {
+		const
+			// we are only interested in dependencies that too can have other dependencies,
+			// thus state kind dependencies don't matter for the scheduler,
+			// because they themselves are always executed dependency free
+			nonstate_dependencies: Set<ObserverID> = new Set(
+				dependencies.filter(isObserverID)
+			),
+			len = scheduled_observers.length
+		// the index at which our `id` will be inserted into the scheduler after the for loop
+		// effect type nodes cannot have observers in the future, thus we need only to insert it to the end of the scheduler list
+		let insertion_index = isEffectID(id) ? len : 0
+		// what the loop does: keep traversing `scheduled_observers` until all dependancies have been encounter.
+		// after which, we would know where exactly to insert our `id` to
+		for (; nonstate_dependencies.size > 0 && insertion_index < len; insertion_index++) {
+			const node_id = scheduled_observers[insertion_index]
+			if (nonstate_dependencies.has(node_id)) {
+				nonstate_dependencies.delete(node_id)
+			}
+		}
+		scheduled_observers.splice(insertion_index, 0, id)
+	}
+
+	/** add an observer's id to a signal's list of observers (`signal_observers[signal_id]`),
+	 * such that it maintains the order of their scheduled execution.
+	 * note that `observer_id` must already be registered to `scheduled_observers`.
+	*/
+	const insert_observer_to_signal = (signal_id: SignalerID, observer_id: ObserverID) => {
+		const
+			observer_ids = signal_observers.get(signal_id)!,
+			len = observer_ids.length
+		// making sure that the new `observer_id` hasn't been registered before
+		if (observer_ids.includes(observer_id)) { return }
+		const observer_pos = scheduled_observers.indexOf(observer_id)
+		let i = 0
+		for (let prev_index = 0; i < len; i++) {
+			prev_index = scheduled_observers.indexOf(observer_ids[i], prev_index)
+			if (prev_index > observer_pos) { break }
+		}
+		observer_ids.splice(i, 0, observer_id)
+	}
+
+
+	/** queue the reactions to a signaler */
+	const queue_reactions = (signaler_id: SignalerID) => {
+		queued_reruns.add(signaler_id)
+		for (const node_id of queued_reruns) {
+			for (const observer_id of signal_observers.get(node_id)!) {
+				// since `observer_id`s appear in their scheduled execution order (thanks to `insert_observer_to_signal`),
+				// we can just queue them for execution without worying about their order
+				queued_reruns.add(observer_id)
+			}
+			all_nodes.get(node_id)!.run()
+			queued_reruns.add(4)
+		}
+	}
+
+}
+
+/** run_observer should:
+ * - State: do nothing
+ * - Lazy:
+ *   - become dirty
+ *   - queue run_observer for observers `queue_reactions(lazy_id)`
+ * - Memo:
+ *   - run update
+ *   - queue run_observer for observers `queue_reactions(memo_id)`
+ * - Memo:
+ *   - run update
+*/
+
+
+
+//test
+
+
+const mid = /* @__PURE__ */ (base: number) => (base * NODE_TYPE_LEN + 2)
+schedule_new_observer(mid(0), [])
+schedule_new_observer(mid(1), [mid(0)])
+schedule_new_observer(mid(3), [mid(0)])
+schedule_new_observer(mid(2), [mid(1), mid(3)])
+schedule_new_observer(mid(4), [mid(2)])
+
+console.log(scheduled_observers.map((v) => (v - 2) / NODE_TYPE_LEN))

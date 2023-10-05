@@ -8,5 +8,5 @@ export type { ConstructorOf, MethodsOf } from "https://deno.land/x/kitchensink_t
 
 //export * from "https://esm.sh/solid-js?d.ts"
 //export type * from "https://esm.sh/solid-js?d.ts"
-export * from "https://deno.land/x/kitchensink_ts@v0.6.4/signal.ts"
+export * from "file:///D:/My works/2022/deno_rewrites/kitchensink_ts/src/signal.ts"
 

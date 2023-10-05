@@ -1,0 +1,414 @@
+const enum NODE_TYPE {
+	STATE = 0,
+	LAZY = 1,
+	MEMO = 2,
+	EFFECT = 3,
+}
+const NODE_TYPE_LEN = 4 as const
+type StateID = NODE_TYPE.STATE | number
+type LazyID = NODE_TYPE.LAZY | number
+type MemoID = NODE_TYPE.MEMO | number
+type EffectID = NODE_TYPE.EFFECT | number
+type SignalerID = StateID | LazyID | MemoID
+type ObserverID = LazyID | MemoID | EffectID
+type NodeID = SignalerID | ObserverID
+
+type Accessor<T> = (observer_id?: ObserverID) => T
+type Setter<T> = (value: T) => void
+type Runner = () => void
+type AccessorSetter<T> = [Accessor<T>, Setter<T>]
+export type LazyFn<T> = (observer_id?: ObserverID) => T
+export type MemoFn<T> = (observer_id?: ObserverID) => T
+export type EffectFn = (observer_id?: ObserverID) => void
+
+type NormalFloat = number
+
+/** type definition for a value equality check function. */
+export type EqualityFn<T> = (prev_value: T | undefined, new_value: T) => NormalFloat
+
+/** type definition for an equality check specification. <br>
+ * when `undefined`, javascript's regular `===` equality will be used. <br>
+ * when `false`, equality will always be evaluated to false, meaning that setting any value will always fire a signal, even if it's equal.
+*/
+export type EqualityCheck<T> = undefined | false | EqualityFn<T>
+
+
+interface Node<T> {
+	id: NodeID
+	fn?: LazyFn<T> | MemoFn<T> | EffectFn
+	value?: T
+	equals?: EqualityFn<T>
+	dirty?: boolean
+	/** initial run id */
+	rid?: 0 | NodeID
+	run?: Runner
+	set?: Setter<T>
+	get?: Accessor<T>
+}
+interface State<T> extends Omit<Node<T>, "fn" | "dirty" | "rid" | "run"> {
+	id: StateID
+	value: T
+	equals: EqualityFn<T>
+	set: Setter<T>
+	get: Accessor<T>
+}
+interface Lazy<T> extends Omit<Node<T>, "equals" | "set"> {
+	id: LazyID
+	fn: LazyFn<T>
+	value?: T
+	dirty: boolean
+	rid: 0 | LazyID
+	run: Runner
+	get: Accessor<T>
+}
+interface Memo<T> extends Omit<Node<T>, "dirty" | "set"> {
+	id: MemoID
+	fn: MemoFn<T>
+	value?: T
+	equals: EqualityFn<T>
+	rid: 0 | MemoID
+	run: Runner
+	get: Accessor<T>
+}
+interface Effect extends Omit<Node<never>, "value" | "equals" | "dirty" | "set" | "get"> {
+	id: EffectID
+	fn: EffectFn
+	rid: 0 | EffectID
+	run: Runner
+}
+type SignalerNode<T> = State<T> | Lazy<T> | Memo<T>
+type ObserverNode<T> = Lazy<T> | Memo<T> | Effect
+
+/** represents options when creating a state via {@link createState}. */
+export interface CreateStateOptions<T> {
+	/** when a state's value is updated through a {@link Setter}, then the observers/dependants of
+	 * THIS state will only be notified if the equality check function evaluates to a `false`. <br>
+	 * see {@link EqualityCheck} to see its function signature and default behavior when left `undefined`
+	*/
+	equals?: EqualityCheck<T>
+}
+
+/** represents options when creating a lazy computation via {@link createLazy}. */
+export interface CreateLazyOptions<T> { }
+
+/** represents options when creating a memo via {@link createMemo}. */
+export interface CreateMemoOptions<T> {
+	/** when a memo's value is updated through a notification by its one of its dependancy signal,
+	 * then the observers/dependants of THIS memo will only be notified if the equality check function evaluates to a `false`. <br>
+	 * see {@link EqualityCheck} to see its function signature and default behavior when left `undefined`
+	*/
+	equals?: EqualityCheck<T>
+	/** specify initial value for {@link equals} to use when doing the very first comparison of equality. */
+	value?: T
+	defer?: boolean
+}
+
+/** represents options when creating an effect node via {@link createEffect}. */
+export interface CreateEffectOptions {
+	/** when `true`, the effect function {@link EffectFn} will not be run immediately (ie the first execution will be skipped),
+	 * and its execution will be put off until one of its dependancy signal notifies of an updated value. <br>
+	 * by default, `defer` is `false`, and effects are immediately executed during initialization. <br>
+	 * the reason why you might want to defer an effect is because the body of the effect function may contain symbols/variables
+	 * that have not been defined yet, in which case an error will be raised, unless you choose to defer the first execution. <br>
+	*/
+	defer?: boolean
+}
+
+const
+	default_equality = (<T>(v1: T, v2: T) => +(v1 === v2)) satisfies EqualityFn<any>,
+	falsey_equality = (<T>(v1: T, v2: T) => 0) satisfies EqualityFn<any>,
+	isStateID = (id: NodeID): id is NODE_TYPE.STATE => (id % NODE_TYPE_LEN === 0),
+	isLazyID = (id: NodeID): id is NODE_TYPE.LAZY => (id % NODE_TYPE_LEN === 1),
+	isMemoID = (id: NodeID): id is NODE_TYPE.MEMO => (id % NODE_TYPE_LEN === 2),
+	isEffectID = (id: NodeID): id is NODE_TYPE.EFFECT => (id % NODE_TYPE_LEN === 3),
+	isSignalerID = (id: NodeID): id is (NODE_TYPE.STATE | NODE_TYPE.LAZY | NODE_TYPE.MEMO) => (id % NODE_TYPE_LEN < 3),
+	isObserverID = (id: NodeID): id is (NODE_TYPE.LAZY | NODE_TYPE.MEMO | NODE_TYPE.EFFECT) => (id % NODE_TYPE_LEN > 0)
+
+const createContext = () => {
+	// we don't initiate `id_counter` with `-NODE_TYPE_LEN`, so that the first created state node gets an id of `4`, rather than `0`.
+	// this is because doing so minaturizes the obeserver id comparison step from: `if (oberver_id !== undefined)` to `if(observer_id)`.
+	let id_counter: StateID = 0
+	const
+		increment_id_counter = (): number => (id_counter += NODE_TYPE_LEN),
+		all_nodes: Map<NodeID, Node<any>> = new Map(),
+		// the observers (values) of each signaler node (keys).
+		// the observers' ids are guaranteed to be sorted in the order of their scheduled execution (as defined by `scheduled_observers`)
+		signal_observers: Map<SignalerID, ObserverID[]> = new Map(),
+		// the dependency signals (values) of each observer node (keys).
+		// this is kind of a reverse mapping of `signal_observers`
+		observer_dependencies: Map<ObserverID, SignalerID[]> = new Map(),
+		// scheduled nodes are ordered according to their topological ordering (look it up on wikipedia).
+		// meaning that that when traversing `scheduled_observers`, you are guaranteed to have always previously encountered any dependency of the current node id.
+		scheduled_observers: ObserverID[] = [],
+		// sets maintain the order of insertion when iterated,
+		// which is a property that we need for the reactions to run based on their scheduled order.
+		queued_reruns: Set<ObserverID> = new Set()
+
+	/** add a new observer to the scheduler `scheduled_observers` at the appropriate index location,
+	 * such that all of its dependency signals come before it in the schedule.
+	*/
+	const schedule_new_observer = (id: ObserverID) => {
+		const
+			// we are only interested in dependencies that too can have other dependencies,
+			// thus state kind dependencies don't matter for the scheduler,
+			// because they themselves are always executed dependency free
+			nonstate_dependencies: Set<ObserverID> = new Set(
+				observer_dependencies.get(id)!.filter(isObserverID)
+			),
+			len = scheduled_observers.length
+		// the index at which our `id` will be inserted into the scheduler after the for loop
+		// effect type nodes cannot have observers in the future, thus we need only to insert it to the end of the scheduler list
+		let insertion_index = isEffectID(id) ? len : 0
+		// what the loop does: keep traversing `scheduled_observers` until all dependancies have been encounter.
+		// after which, we would know where exactly to insert our `id` to
+		for (; nonstate_dependencies.size > 0 && insertion_index < len; insertion_index++) {
+			const node_id = scheduled_observers[insertion_index]
+			if (nonstate_dependencies.has(node_id)) {
+				nonstate_dependencies.delete(node_id)
+			}
+		}
+		scheduled_observers.splice(insertion_index, 0, id)
+	}
+
+	/** add an observer's id to a signal's list of observers (`signal_observers[signal_id]`),
+	 * such that it maintains the order of their scheduled execution.
+	 * note that `observer_id` must already be registered to `scheduled_observers`.
+	*/
+	const insert_observer_to_signal = (signal_id: SignalerID, observer_id: ObserverID) => {
+		const
+			observer_ids = signal_observers.get(signal_id)!,
+			len = observer_ids.length
+		// making sure that the new `observer_id` hasn't been registered before
+		if (observer_ids.includes(observer_id)) { return }
+		const observer_pos = scheduled_observers.indexOf(observer_id)
+		let i = 0
+		for (let prev_index = 0; i < len; i++) {
+			prev_index = scheduled_observers.indexOf(observer_ids[i], prev_index)
+			if (prev_index > observer_pos) { break }
+		}
+		observer_ids.splice(i, 0, observer_id)
+	}
+
+	const register_observer_to_signal = (signal_id: SignalerID, observer_id?: ObserverID) => {
+		if (observer_id) {
+			observer_dependencies.get(observer_id)!.push(signal_id)
+			signal_observers.get(signal_id)!.push(observer_id)
+		}
+	}
+
+	const add_its_observers_to_rerun_queue = (signaler_id: SignalerID) => {
+		for (const observer_id of signal_observers.get(signaler_id)!) {
+			queued_reruns.add(observer_id)
+		}
+	}
+
+	const rerun_reactions = () => {
+		for (const observer_id of queued_reruns) {
+			(all_nodes.get(observer_id)! as ObserverNode<any>).run()
+		}
+		queued_reruns.clear()
+	}
+
+	const State = class <T> implements State<T>{
+		equals: EqualityFn<T>
+
+		constructor(
+			public id: StateID,
+			public value: T,
+			equals?: EqualityCheck<T>,
+		) {
+			this.equals = (equals ?? default_equality) || falsey_equality
+		}
+
+		/** sets `this.value`, then queue's its observers to run if the new value does not equal to the old value */
+		set: Setter<T> = (value) => {
+			if (this.equals(this.value, value) < 0.5) {
+				this.value = value
+				add_its_observers_to_rerun_queue(this.id)
+			}
+		}
+
+		get: Accessor<T> = (observer_id) => {
+			register_observer_to_signal(this.id, observer_id)
+			return this.value
+		}
+	}
+
+	const Lazy = class <T> implements Lazy<T>{
+		value?: T
+		dirty: boolean
+		rid: 0 | LazyID
+
+		constructor(
+			public id: LazyID,
+			public fn: LazyFn<T>,
+		) {
+			this.dirty = true
+			this.rid = id
+		}
+
+		/** becomes dirty, and queues its observers to rerun */
+		run() {
+			this.dirty = true
+			add_its_observers_to_rerun_queue(this.id)
+		}
+
+		get: Accessor<T> = (observer_id) => {
+			const rid = this.rid
+			register_observer_to_signal(this.id, observer_id)
+			if (this.dirty) {
+				this.value = this.fn(rid)
+				if (rid) { schedule_new_observer(rid) }
+				this.dirty = false
+				// destoy `this.rid`, because there's no longer a need to notify this effects's dependancy
+				// signals inside of `this.fn`, since they've been notified before (in the `this.fn(this.rid)` line)
+				this.rid = 0
+			}
+			return this.value!
+		}
+	}
+
+	const Memo = class <T> implements Memo<T>{
+		equals: EqualityFn<T>
+		rid: 0 | MemoID
+
+		constructor(
+			public id: MemoID,
+			public fn: MemoFn<T>,
+			public value?: T,
+			equals?: EqualityCheck<T>,
+		) {
+			this.equals = (equals ?? default_equality) || falsey_equality
+			this.rid = id
+			queued_reruns.add(id)
+		}
+
+		/** updates `this.value`, then queue's its observers to run if the new value does not equal to the old value */
+		run() {
+			const
+				rid = this.rid,
+				value = this.fn(rid)
+			if (rid) { schedule_new_observer(rid) }
+			// destoy `this.rid`, because there's no longer a need to notify this effects's dependancy
+			// signals inside of `this.fn`, since they've been notified before (in the `this.fn(this.rid)` line)
+			this.rid = 0
+			// only notify observers if the value has changed
+			if (this.equals(this.value, value) < 0.5) {
+				this.value = value
+				add_its_observers_to_rerun_queue(this.id)
+			}
+		}
+
+		get: Accessor<T> = (observer_id) => {
+			register_observer_to_signal(this.id, observer_id)
+			return this.value!
+		}
+	}
+
+	const Effect = class implements Effect {
+		rid: 0 | EffectID
+
+		constructor(
+			public id: EffectID,
+			public fn: EffectFn,
+		) {
+			this.rid = id
+			queued_reruns.add(id)
+		}
+
+		/** runs the effect */
+		run: Runner = () => {
+			const rid = this.rid
+			this.fn(rid)
+			if (rid) { schedule_new_observer(rid) }
+			// destoy `this.rid`, because there's no longer a need to notify this effects's dependancy
+			// signals inside of `this.fn`, since they've been notified before (in the `this.fn(this.rid)` line)
+			this.rid = 0
+		}
+	}
+
+	const createState = <T>(initial_value: T, { equals }: CreateStateOptions<T> = {}): AccessorSetter<T> => {
+		const
+			id: StateID = increment_id_counter(),
+			state = new State<T>(id, initial_value, equals)
+		all_nodes.set(id, state)
+		signal_observers.set(id, [])
+		return [state.get, state.set]
+	}
+
+	const createLazy = <T>(fn: LazyFn<T>, options?: CreateLazyOptions<T>): Accessor<T> => {
+		const
+			id: LazyID = increment_id_counter() + 1,
+			lazy = new Lazy<T>(id, fn)
+		all_nodes.set(id, lazy)
+		signal_observers.set(id, [])
+		observer_dependencies.set(id, [])
+		return lazy.get
+	}
+
+	const createMemo = <T>(fn: MemoFn<T>, { value, equals, defer = true }: CreateMemoOptions<T> = {}): Accessor<T> => {
+		const
+			id: MemoID = increment_id_counter() + 2,
+			memo = new Memo<T>(id, fn, value, equals)
+		all_nodes.set(id, memo)
+		signal_observers.set(id, [])
+		observer_dependencies.set(id, [])
+		if (!defer) { memo.run() }
+		return memo.get
+	}
+
+	const createEffect = (fn: EffectFn, { defer = true }: CreateEffectOptions = {}): Runner => {
+		const
+			id: EffectID = increment_id_counter() + 3,
+			effect = new Effect(id, fn)
+		all_nodes.set(id, effect)
+		observer_dependencies.set(id, [])
+		if (!defer) { effect.run() }
+		return effect.run
+	}
+
+	return { createState, createLazy, createMemo, createEffect, rerun_reactions }
+}
+
+/** run_observer should:
+ * - State: do nothing
+ * - Lazy:
+ *   - become dirty
+ *   - queue run_observer for observers `queue_reactions(lazy_id)`
+ * - Memo:
+ *   - run update
+ *   - queue run_observer for observers `queue_reactions(memo_id)`
+ * - Memo:
+ *   - run update
+*/
+
+
+
+//test
+const { createState, createLazy, createMemo, createEffect, rerun_reactions } = createContext()
+const [s1, setS1] = createState<number>(1)
+const [s2, setS2] = createState<number>(2)
+
+const l1 = createLazy((id) => s1(id) * 2)
+const l2 = createLazy((id) => s2(id) + l1(id))
+
+const m1 = createMemo((id) => s1(id) * 2)
+const m2 = createMemo((id) => s2(id) + l1(id))
+
+const e1 = createEffect((id) => {
+	console.log(`I seek s1 and l2: ${s1(id)}, ${l2(id)}`)
+	console.log(`I seek m1 and m2: ${m1(id)}, ${m2(id)}`)
+})
+
+
+/*
+const mid = (base: number) => (base * NODE_TYPE_LEN + 2)
+schedule_new_observer(mid(0), [])
+schedule_new_observer(mid(1), [mid(0)])
+schedule_new_observer(mid(3), [mid(0)])
+schedule_new_observer(mid(2), [mid(1), mid(3)])
+schedule_new_observer(mid(4), [mid(2)])
+
+console.log(scheduled_observers.map((v) => (v - 2) / NODE_TYPE_LEN))
+*/
+
