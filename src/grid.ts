@@ -1,7 +1,7 @@
 import { Accessor, createMemo, createSignal, createEffect, batch, untrack, pauseEffect, resumeEffect, Setter, resumeReactivity, pauseReactivity } from "./deps.ts"
 import { Array2DShape, spliceArray2DMajor, spliceArray2DMinor, rotateArray2DMajor, rotateArray2DMinor, Array2D, Array2DRowMajor, Array2DColMajor } from "./deps.ts"
 import { max, min, sum, cumulativeSum } from "./deps.ts"
-import { math_max, math_min, math_abs, math_sin, math_cos } from "https://deno.land/x/kitchensink_ts@v0.6.4/builtin_aliases.ts"
+import { math_max, math_min, math_abs, math_sin, math_cos } from "https://deno.land/x/kitchensink_ts@v0.7.0/builtin_aliases.ts"
 
 /** a number between 0 and 1 (inclusive) */
 type UnitNumber = number

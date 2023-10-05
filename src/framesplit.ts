@@ -1,4 +1,4 @@
-import { Accessor, ConstructorOf, MethodsOf, Setter, Signal, CreateSignalOptions, createEffect, max, min, createSignal, createMemo, untrack, constructFrom } from "./deps.ts"
+import { Accessor, Setter, constructFrom, Context, MemoSignal_Factory, StateSignal_Factory, max, min } from "./deps.ts"
 
 type CombinationLiteral<A extends string, B extends string, SEP extends string = "+" | " + "> = A | `${A}${SEP}${B}` | B
 
@@ -63,11 +63,21 @@ type MarginGetter = Accessor<MarginValue>
 type MarginSetter = Setter<MarginValue>
 
 const ltrb_iter = ["left", "top", "right", "bottom"] as const
-const createSignalIfPrimitive = <T>(value: T | Accessor<T>): [get: Accessor<T>, set?: Setter<T>] => {
-	return typeof value === "function" ?
-		[value as Accessor<T>, undefined] :
-		createSignal<T>(value)
-}
+const
+	signal_ctx = new Context(),
+	_createState = signal_ctx.addClass(StateSignal_Factory),
+	_createMemo = signal_ctx.addClass(MemoSignal_Factory),
+	createState = <T>(...args: Parameters<typeof _createState<T>>): [ReturnType<typeof _createState<T>>[1], ReturnType<typeof _createState<T>>[2]] => {
+		return _createState(...args).splice(1) as [Accessor<T>, Setter<T>]
+	},
+	createMemo = <T>(...args: Parameters<typeof _createMemo<T>>): ReturnType<typeof _createMemo<T>>[1] => {
+		return _createMemo(...args)[1]
+	},
+	createStateIfPrimitive = <T>(value: T | Accessor<T>): [get: Accessor<T>, set?: Setter<T>] => {
+		return typeof value === "function" ?
+			[value as Accessor<T>, undefined] :
+			createState<T>(value)
+	}
 const uniqueIndexes = (max_value: number, quantity: number) => {
 	const number_set = new Set<number>()
 	while (number_set.size < quantity) {
@@ -117,7 +127,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 			const
 				dim_name = ltrb_iter[i],
 				dim = ltrb[i],
-				[dim_getter, dim_setter] = createSignalIfPrimitive(dim)
+				[dim_getter, dim_setter] = createStateIfPrimitive(dim)
 			this[dim_name] = dim_getter
 			set[dim_name] = dim_setter
 		}
@@ -147,20 +157,20 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getWidth, setWidth] = createSignalIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
-			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
-			child_left = createMemo(() => {
-				const { left: ml = 0, right: mr = 0 } = getMargin()
-				return min(left() + ml, right() - mr)
+			[getWidth, setWidth] = createStateIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
+			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
+			child_left = createMemo((id) => {
+				const { left: ml = 0, right: mr = 0 } = getMargin(id)
+				return min(left(id) + ml, right(id) - mr)
 			}),
-			child_right = createMemo(() => {
+			child_right = createMemo((id) => {
 				const
-					{ left: ml = 0, right: mr = 0 } = getMargin(),
-					l = left() + ml,
-					r = max(right() - mr, l),
-					t = top(),
-					b = bottom(),
-					{ px = 0, vw = 0, vh = 0 } = getWidth()
+					{ left: ml = 0, right: mr = 0 } = getMargin(id),
+					l = left(id) + ml,
+					r = max(right(id) - mr, l),
+					t = top(id),
+					b = bottom(id),
+					{ px = 0, vw = 0, vh = 0 } = getWidth(id)
 				return min(l + px + (r - l) * vw + (b - t) * vh, r)
 			}),
 			child_framesplit = constructFrom(this, child_left, top, child_right, bottom)
@@ -168,7 +178,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		child_framesplit.width = getWidth
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.width = setWidth
-		freespace.left = createMemo(() => min(child_right() + getMargin().right, right()))
+		freespace.left = createMemo((id) => min(child_right(id) + getMargin(id).right, right(id)))
 		this.children.push(child_framesplit)
 		return child_framesplit
 	}
@@ -184,20 +194,20 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getHeight, setHeight] = createSignalIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
-			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
-			child_top = createMemo(() => {
-				const { top: mt = 0, bottom: mb = 0 } = getMargin()
-				return min(top() + mt, bottom() - mb)
+			[getHeight, setHeight] = createStateIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
+			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
+			child_top = createMemo((id) => {
+				const { top: mt = 0, bottom: mb = 0 } = getMargin(id)
+				return min(top(id) + mt, bottom(id) - mb)
 			}),
-			child_bottom = createMemo(() => {
+			child_bottom = createMemo((id) => {
 				const
 					{ top: mt = 0, bottom: mb = 0 } = getMargin(),
-					l = left(),
-					r = right(),
-					t = top() + mt,
-					b = max(bottom() - mb, t),
-					{ px = 0, vw = 0, vh = 0 } = getHeight()
+					l = left(id),
+					r = right(id),
+					t = top(id) + mt,
+					b = max(bottom(id) - mb, t),
+					{ px = 0, vw = 0, vh = 0 } = getHeight(id)
 				return min(t + px + (r - l) * vw + (b - t) * vh, b)
 			}),
 			child_framesplit = constructFrom(this, left, child_top, right, child_bottom)
@@ -205,7 +215,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		child_framesplit.height = getHeight
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.height = setHeight
-		freespace.top = createMemo(() => min(child_bottom() + getMargin().bottom, bottom()))
+		freespace.top = createMemo((id) => min(child_bottom(id) + getMargin(id).bottom, bottom(id)))
 		this.children.push(child_framesplit)
 		return child_framesplit
 	}
@@ -221,28 +231,28 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getWidth, setWidth] = createSignalIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
-			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
-			child_left = createMemo(() => {
+			[getWidth, setWidth] = createStateIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
+			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
+			child_left = createMemo((id) => {
 				const
-					{ left: ml = 0, right: mr = 0 } = getMargin(),
-					l = left() + ml,
-					r = max(right() - mr, l),
-					t = top(),
-					b = bottom(),
-					{ px = 0, vw = 0, vh = 0 } = getWidth()
+					{ left: ml = 0, right: mr = 0 } = getMargin(id),
+					l = left(id) + ml,
+					r = max(right(id) - mr, l),
+					t = top(id),
+					b = bottom(id),
+					{ px = 0, vw = 0, vh = 0 } = getWidth(id)
 				return max(r - px - (r - l) * vw - (b - t) * vh, l)
 			}),
-			child_right = createMemo(() => {
-				const { left: ml = 0, right: mr = 0 } = getMargin()
-				return max(left() + ml, right() - mr)
+			child_right = createMemo((id) => {
+				const { left: ml = 0, right: mr = 0 } = getMargin(id)
+				return max(left(id) + ml, right(id) - mr)
 			}),
 			child_framesplit = constructFrom(this, child_left, top, child_right, bottom)
 		child_framesplit.margin = getMargin
 		child_framesplit.width = getWidth
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.width = setWidth
-		freespace.right = createMemo(() => max(child_left() + getMargin().left, left()))
+		freespace.right = createMemo((id) => max(child_left(id) + getMargin(id).left, left(id)))
 		this.children.push(child_framesplit)
 		return child_framesplit
 	}
@@ -258,28 +268,28 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getHeight, setHeight] = createSignalIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
-			[getMargin, setMargin] = createSignalIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
-			child_top = createMemo(() => {
+			[getHeight, setHeight] = createStateIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
+			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
+			child_top = createMemo((id) => {
 				const
-					{ top: mt = 0, bottom: mb = 0 } = getMargin(),
-					l = left(),
-					r = right(),
-					t = top() + mt,
-					b = max(bottom() - mb, t),
-					{ px = 0, vw = 0, vh = 0 } = getHeight()
+					{ top: mt = 0, bottom: mb = 0 } = getMargin(id),
+					l = left(id),
+					r = right(id),
+					t = top(id) + mt,
+					b = max(bottom(id) - mb, t),
+					{ px = 0, vw = 0, vh = 0 } = getHeight(id)
 				return max(b - px - (r - l) * vw - (b - t) * vh, t)
 			}),
-			child_bottom = createMemo(() => {
-				const { top: mt = 0, bottom: mb = 0 } = getMargin()
-				return max(top() + mt, bottom() - mb)
+			child_bottom = createMemo((id) => {
+				const { top: mt = 0, bottom: mb = 0 } = getMargin(id)
+				return max(top(id) + mt, bottom(id) - mb)
 			}),
 			child_framesplit = constructFrom(this, left, child_top, right, child_bottom)
 		child_framesplit.margin = getMargin
 		child_framesplit.height = getHeight
 		child_framesplit.set.margin = setMargin
 		child_framesplit.set.height = setHeight
-		freespace.bottom = createMemo(() => max(child_top() + getMargin().top, top()))
+		freespace.bottom = createMemo((id) => max(child_top(id) + getMargin(id).top, top(id)))
 		this.children.push(child_framesplit)
 		return child_framesplit
 	}

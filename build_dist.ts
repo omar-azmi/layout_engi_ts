@@ -6,14 +6,15 @@ import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.8.1/mod.t
  * - `"./examples/${num}/${script}.ts"` for compiling an example
 */
 const
-	compile_file = Deno.args[0] ?? "./src/reactttb.ts",
+	compile_file = Deno.args[0] ?? "./src/framesplit.test.ts",
 	compiled_file = `./dist/${compile_file.split("/").reverse()[0].slice(0, -3)}.js`
 let t0 = performance.now(), t1: number
 await esbuild({
 	entryPoints: [compile_file],
 	outdir: "./dist/",
 	bundle: true,
-	minify: true,
+	//minify: true,
+	treeShaking: true,
 	platform: "neutral",
 	format: "esm",
 	target: "esnext",
