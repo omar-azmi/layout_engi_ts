@@ -102,9 +102,86 @@ class Grid implements NonNullable<GridInit> {
 	setDirty!: Setter<void>
 	cells!: Array2DRowMajor<GridCell>
 
-	private getColWidths: Accessor<number[]>
-	private getRowHeights: Accessor<number[]>
-	public getCellFrames: Accessor<CellFrameInfo[][]>
+	getColWidths: Accessor<number[]> = createMemo<number[]>((id) => {
+		this.isDirty(id)
+		console.log("recomputing colWidths")
+		const
+			{ cols, colWidth } = this,
+			colWidth_len = colWidth.length,
+			max_widths = Array(cols).fill(0)
+		for (let c = 0; c < cols; c++) {
+			const default_width = colWidth[c % colWidth_len]
+			max_widths[c] = math_max(...this.getCol(c).map((cell) => {
+				const { width, height = 0, rotation } = cell
+				return width !== undefined ?
+					get_rotated_bound_box(width, height, rotation).width :
+					default_width
+			}))
+		}
+		return max_widths
+	})
+
+	getRowHeights: Accessor<number[]> = createMemo<number[]>((id) => {
+		this.isDirty(id)
+		console.log("recomputing rowHeights")
+		const
+			{ rows, rowHeight } = this,
+			rowHeight_len = rowHeight.length,
+			max_heights = Array(rows).fill(0)
+		for (let r = 0; r < rows; r++) {
+			const default_height = rowHeight[r % rowHeight_len]
+			max_heights[r] = math_max(...this.getRow(r).map((cell) => {
+				const { width = 0, height, rotation } = cell
+				return height !== undefined ?
+					get_rotated_bound_box(width, height, rotation).height :
+					default_height
+			}))
+		}
+		return max_heights
+	})
+
+	getCellFrames: Accessor<CellFrameInfo[][]> = createMemo<CellFrameInfo[][]>((id) => {
+		console.log("recomputing cellFrames")
+		const
+			{ rows, cols, cells, colGap, rowGap, colAlign: colAlignGlobal, rowAlign: rowAlignGlobal, getColWidths, getRowHeights } = this,
+			colGap_len = colGap.length,
+			rowGap_len = rowGap.length,
+			colAlignGlobal_len = colAlignGlobal.length,
+			rowAlignGlobal_len = rowAlignGlobal.length,
+			colWidths = getColWidths(id),
+			rowHeights = getRowHeights(id),
+			left_vals = zeroCumulativeSum(colWidths.map((col_width, c) => col_width + colGap[c % colGap_len])),
+			top_vals = zeroCumulativeSum(rowHeights.map((row_height, r) => row_height + rowGap[r % rowGap_len])),
+			cell_frames: CellFrameInfo[][] = Array(rows).fill(undefined).map(() => Array(cols).fill(undefined))
+		for (let r = 0; r < rows; r++) {
+			for (let c = 0; c < cols; c++) {
+				const
+					left = left_vals[c],
+					top = top_vals[r],
+					thisColWidth = colWidths[c],
+					thisRowHeight = rowHeights[r],
+					right = left + thisColWidth,
+					bottom = top + thisRowHeight,
+					{
+						width = 0, height = 0, rotation,
+						anchor: { x: anchorSelfX, y: anchorSelfY } = {},
+						colAlign = colAlignGlobal[c % colAlignGlobal_len],
+						rowAlign = rowAlignGlobal[r % rowAlignGlobal_len],
+					} = cells[r][c],
+					colAlign_val = alignment_to_number(colAlign),
+					rowAlign_val = alignment_to_number(rowAlign),
+					anchorX = anchorSelfX ?? colAlign_val,
+					anchorY = anchorSelfY ?? rowAlign_val,
+					x = thisColWidth * colAlign_val - width * anchorX,
+					y = thisRowHeight * rowAlign_val - height * anchorY
+				cell_frames[r][c] = {
+					left, top, right, bottom,
+					x, y, width, height, rotation,
+				}
+			}
+		}
+		return cell_frames
+	})
 
 	constructor(config: GridInit) {
 		const
@@ -123,90 +200,7 @@ class Grid implements NonNullable<GridInit> {
 			rowAlign: parse_alignments(rowAlign),
 			isDirty, setDirty, cells,
 		})
-
-		this.getColWidths = createMemo<number[]>((id) => {
-			this.isDirty(id)
-			console.log("recomputing colWidths")
-			const
-				{ cols, colWidth } = this,
-				colWidth_len = colWidth.length,
-				max_widths = Array(cols).fill(0)
-			for (let c = 0; c < cols; c++) {
-				const default_width = colWidth[c % colWidth_len]
-				max_widths[c] = math_max(...this.getCol(c).map((cell) => {
-					const { width, height = 0, rotation } = cell
-					return width !== undefined ?
-						get_rotated_bound_box(width, height, rotation).width :
-						default_width
-				}))
-			}
-			return max_widths
-		}, { equals: false, name: "getColWidths" })
-
-		this.getRowHeights = createMemo<number[]>((id) => {
-			this.isDirty(id)
-			console.log("recomputing rowHeights")
-			const
-				{ rows, rowHeight } = this,
-				rowHeight_len = rowHeight.length,
-				max_heights = Array(rows).fill(0)
-			for (let r = 0; r < rows; r++) {
-				const default_height = rowHeight[r % rowHeight_len]
-				max_heights[r] = math_max(...this.getRow(r).map((cell) => {
-					const { width = 0, height, rotation } = cell
-					return height !== undefined ?
-						get_rotated_bound_box(width, height, rotation).height :
-						default_height
-				}))
-			}
-			return max_heights
-		}, { equals: false, name: "getRowHeights" })
-
-		this.getCellFrames = createMemo<CellFrameInfo[][]>((id) => {
-			console.log("recomputing cellFrames")
-			const
-				{ rows, cols, cells, colGap, rowGap, colAlign: colAlignGlobal, rowAlign: rowAlignGlobal, getColWidths, getRowHeights } = this,
-				colGap_len = colGap.length,
-				rowGap_len = rowGap.length,
-				colAlignGlobal_len = colAlignGlobal.length,
-				rowAlignGlobal_len = rowAlignGlobal.length,
-				colWidths = getColWidths(id),
-				rowHeights = getRowHeights(id),
-				left_vals = zeroCumulativeSum(colWidths.map((col_width, c) => col_width + colGap[c % colGap_len])),
-				top_vals = zeroCumulativeSum(rowHeights.map((row_height, r) => row_height + rowGap[r % rowGap_len])),
-				cell_frames: CellFrameInfo[][] = Array(rows).fill(undefined).map(() => Array(cols).fill(undefined))
-			for (let r = 0; r < rows; r++) {
-				for (let c = 0; c < cols; c++) {
-					const
-						left = left_vals[c],
-						top = top_vals[r],
-						thisColWidth = colWidths[c],
-						thisRowHeight = rowHeights[r],
-						right = left + thisColWidth,
-						bottom = top + thisRowHeight,
-						{
-							width = 0, height = 0, rotation,
-							anchor: { x: anchorSelfX, y: anchorSelfY } = {},
-							colAlign = colAlignGlobal[c % colAlignGlobal_len],
-							rowAlign = rowAlignGlobal[r % rowAlignGlobal_len],
-						} = cells[r][c],
-						colAlign_val = alignment_to_number(colAlign),
-						rowAlign_val = alignment_to_number(rowAlign),
-						anchorX = anchorSelfX ?? colAlign_val,
-						anchorY = anchorSelfY ?? rowAlign_val,
-						x = thisColWidth * colAlign_val - width * anchorX,
-						y = thisRowHeight * rowAlign_val - height * anchorY
-					cell_frames[r][c] = {
-						left, top, right, bottom,
-						x, y, width, height, rotation,
-					}
-				}
-			}
-			return cell_frames
-		}, { equals: false, defer: false, name: "getCellFrames" })
-
-		// no need to setDirty, as the signal is dirty by default (during the initial computation)
-		//this.setDirty()
+		this.getCellFrames() // update the cell frames matrix
 	}
 
 	getCellFrame(row: number, col: number): CellFrameInfo {
