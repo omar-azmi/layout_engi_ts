@@ -1,7 +1,5 @@
-import { Accessor, createMemo, createSignal, createEffect, batch, untrack, pauseEffect, resumeEffect, Setter, resumeReactivity, pauseReactivity } from "./deps.ts"
-import { Array2DShape, spliceArray2DMajor, spliceArray2DMinor, rotateArray2DMajor, rotateArray2DMinor, Array2D, Array2DRowMajor, Array2DColMajor } from "./deps.ts"
-import { max, min, sum, cumulativeSum } from "./deps.ts"
-import { math_max, math_min, math_abs, math_sin, math_cos } from "https://deno.land/x/kitchensink_ts@v0.7.0/builtin_aliases.ts"
+import { Array2DColMajor, Array2DRowMajor, Array2DShape, cumulativeSum, math_abs, math_cos, math_max, math_sin, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
+import { Accessor, Setter, createMemo, createState } from "./signal.ts"
 
 /** a number between 0 and 1 (inclusive) */
 type UnitNumber = number
@@ -100,8 +98,8 @@ class Grid implements NonNullable<GridInit> {
 	rowAlign!: NonNullable<GridInit["rowAlign"]>
 	colGap!: NonNullable<GridInit["colGap"]>
 	rowGap!: NonNullable<GridInit["rowGap"]>
-	isDirty!: Accessor<undefined>
-	setDirty!: Setter<undefined>
+	isDirty!: Accessor<void>
+	setDirty!: Setter<void>
 	cells!: Array2DRowMajor<GridCell>
 
 	private getColWidths: Accessor<number[]>
@@ -116,7 +114,7 @@ class Grid implements NonNullable<GridInit> {
 				colAlign = ["start"], rowAlign = ["start"],
 				colGap = [0], rowGap = [0]
 			} = config,
-			[isDirty, setDirty] = createSignal(undefined, { equals: false }),
+			[isDirty, setDirty] = createState(undefined, { equals: false }),
 			cells = Array(rows).fill(undefined).map(() => Array(cols).fill(undefined))
 		for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { cells[r][c] = {} } }
 		Object.assign(this, {
@@ -126,8 +124,8 @@ class Grid implements NonNullable<GridInit> {
 			isDirty, setDirty, cells,
 		})
 
-		this.getColWidths = createMemo<number[]>(() => {
-			this.isDirty()
+		this.getColWidths = createMemo<number[]>((id) => {
+			this.isDirty(id)
 			console.log("recomputing colWidths")
 			const
 				{ cols, colWidth } = this,
@@ -143,10 +141,10 @@ class Grid implements NonNullable<GridInit> {
 				}))
 			}
 			return max_widths
-		})
+		}, { equals: false, name: "getColWidths" })
 
-		this.getRowHeights = createMemo<number[]>(() => {
-			this.isDirty()
+		this.getRowHeights = createMemo<number[]>((id) => {
+			this.isDirty(id)
 			console.log("recomputing rowHeights")
 			const
 				{ rows, rowHeight } = this,
@@ -162,9 +160,9 @@ class Grid implements NonNullable<GridInit> {
 				}))
 			}
 			return max_heights
-		})
+		}, { equals: false, name: "getRowHeights" })
 
-		this.getCellFrames = createMemo<CellFrameInfo[][]>(() => {
+		this.getCellFrames = createMemo<CellFrameInfo[][]>((id) => {
 			console.log("recomputing cellFrames")
 			const
 				{ rows, cols, cells, colGap, rowGap, colAlign: colAlignGlobal, rowAlign: rowAlignGlobal, getColWidths, getRowHeights } = this,
@@ -172,8 +170,8 @@ class Grid implements NonNullable<GridInit> {
 				rowGap_len = rowGap.length,
 				colAlignGlobal_len = colAlignGlobal.length,
 				rowAlignGlobal_len = rowAlignGlobal.length,
-				colWidths = getColWidths(),
-				rowHeights = getRowHeights(),
+				colWidths = getColWidths(id),
+				rowHeights = getRowHeights(id),
 				left_vals = zeroCumulativeSum(colWidths.map((col_width, c) => col_width + colGap[c % colGap_len])),
 				top_vals = zeroCumulativeSum(rowHeights.map((row_height, r) => row_height + rowGap[r % rowGap_len])),
 				cell_frames: CellFrameInfo[][] = Array(rows).fill(undefined).map(() => Array(cols).fill(undefined))
@@ -205,7 +203,7 @@ class Grid implements NonNullable<GridInit> {
 				}
 			}
 			return cell_frames
-		})
+		}, { equals: false, defer: false, name: "getCellFrames" })
 
 		// no need to setDirty, as the signal is dirty by default (during the initial computation)
 		//this.setDirty()

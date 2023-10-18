@@ -1,7 +1,5 @@
-import { Accessor, Setter, constructFrom, Context, MemoSignal_Factory, StateSignal_Factory, max, min, number_isFinite } from "./deps.ts"
-
-// NOTE1: this was intended for attaching external signals, but I do not forsee ever doing that. plus supporting it would increase the complexity that goes into `this.set.margin`
-
+import { constructFrom, max, min, number_isFinite } from "./deps.ts"
+import { Accessor, Setter, createMemo, createStateIfPrimitive } from "./signal.ts"
 
 type CombinationLiteral<A extends string, B extends string, SEP extends string = "+" | " + "> = A | `${A}${SEP}${B}` | B
 
@@ -74,21 +72,7 @@ export type MarginGetter = Accessor<MarginValue>
 export type MarginSetter = Setter<MarginValue>
 
 const ltrb_iter = ["left", "top", "right", "bottom"] as const
-const
-	signal_ctx = new Context(),
-	_createState = signal_ctx.addClass(StateSignal_Factory),
-	_createMemo = signal_ctx.addClass(MemoSignal_Factory),
-	createState = <T>(...args: Parameters<typeof _createState<T>>): [ReturnType<typeof _createState<T>>[1], ReturnType<typeof _createState<T>>[2]] => {
-		return _createState(...args).splice(1) as [Accessor<T>, Setter<T>]
-	},
-	createMemo = <T>(...args: Parameters<typeof _createMemo<T>>): ReturnType<typeof _createMemo<T>>[1] => {
-		return _createMemo(...args)[1]
-	},
-	createStateIfPrimitive = <T>(value: T | Accessor<T>): [get: Accessor<T>, set?: Setter<T>] => {
-		return typeof value === "function" ?
-			[value as Accessor<T>, undefined] :
-			createState<T>(value)
-	}
+
 const uniqueIndexes = (max_value: number, quantity: number) => {
 	const number_set = new Set<number>()
 	while (number_set.size < quantity) {
@@ -161,11 +145,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		width: AnyLength,
 		margin: DimensionXValue = {},
 	) {
-		// see NOTE1
-		//if (typeof margin !== "function") {
 		margin.left ??= 0
 		margin.right ??= 0
-		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
@@ -199,11 +180,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		height: AnyLength,
 		margin: DimensionYValue = {},
 	) {
-		// see NOTE1
-		//if (typeof margin !== "function") {
 		margin.top ??= 0
 		margin.bottom ??= 0
-		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
@@ -237,11 +215,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		width: AnyLength,
 		margin: DimensionXValue = {},
 	) {
-		// see NOTE1
-		//if (typeof margin !== "function") {
 		margin.left ??= 0
 		margin.right ??= 0
-		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
@@ -275,11 +250,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		height: AnyLength,
 		margin: DimensionYValue = {},
 	) {
-		// see NOTE1
-		//if (typeof margin !== "function") {
 		margin.top ??= 0
 		margin.bottom ??= 0
-		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
