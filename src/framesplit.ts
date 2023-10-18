@@ -1,4 +1,7 @@
-import { Accessor, Setter, constructFrom, Context, MemoSignal_Factory, StateSignal_Factory, max, min } from "./deps.ts"
+import { Accessor, Setter, constructFrom, Context, MemoSignal_Factory, StateSignal_Factory, max, min, number_isFinite } from "./deps.ts"
+
+// NOTE1: this was intended for attaching external signals, but I do not forsee ever doing that. plus supporting it would increase the complexity that goes into `this.set.margin`
+
 
 type CombinationLiteral<A extends string, B extends string, SEP extends string = "+" | " + "> = A | `${A}${SEP}${B}` | B
 
@@ -11,9 +14,10 @@ export interface LengthUnit {
 	vw?: number
 	vh?: number
 }
+export type AnyLength = LengthUnit | LengthUnitLiteral | number | `{number}`
 
 const length_unit_name_iter = ["px", "vw", "vh"] as const
-export const parseLengthUnit = (str: LengthUnitLiteral): LengthUnit => {
+const parseLengthUnitLiteral = (str: LengthUnitLiteral): LengthUnit => {
 	const length_units: Required<LengthUnit> = { px: 0, vw: 0, vh: 0 }
 	for (const unit_str of str.split("+")) {
 		const
@@ -24,9 +28,16 @@ export const parseLengthUnit = (str: LengthUnitLiteral): LengthUnit => {
 	}
 	return length_units
 }
-export const stringifyLengthUnit = (length_units: LengthUnit): LengthUnitLiteral => {
+export const parseLengthUnit = (length: AnyLength): Partial<LengthUnit> => {
+	if (typeof length === "object") { return length }
+	const px_only_length = Number(length)
+	if (number_isFinite(px_only_length)) { return { px: px_only_length } }
+	return parseLengthUnitLiteral(length as LengthUnitLiteral)
+}
+export const stringifyLengthUnit = (length: AnyLength): LengthUnitLiteral => {
+	const length_unit = parseLengthUnit(length)
 	return length_unit_name_iter.map(
-		(unit_name) => (String(length_units[unit_name] ?? 0) + unit_name)
+		(unit_name) => (String(length_unit[unit_name] ?? 0) + unit_name)
 	).join(" + ") as LengthUnitLiteral
 }
 
@@ -57,10 +68,10 @@ interface DimensionYSetter {
 	bottom?: Setter<number>
 }
 
-type MarginConfig = DimensionXValue & DimensionYValue
-type MarginValue = Required<MarginConfig>
-type MarginGetter = Accessor<MarginValue>
-type MarginSetter = Setter<MarginValue>
+export type MarginConfig = DimensionXValue & DimensionYValue
+export type MarginValue = Required<MarginConfig>
+export type MarginGetter = Accessor<MarginValue>
+export type MarginSetter = Setter<MarginValue>
 
 const ltrb_iter = ["left", "top", "right", "bottom"] as const
 const
@@ -96,7 +107,7 @@ const pickUnique = function* <T>(arr: T[]) {
 	}
 }
 const colors = ["aqua", "aquamarine", "antiquewhite", "blue", "brown", "blueviolet", "chartreuse", "crimson", "darkkhaki", "darkorange", "darksalmon", "fuchsia", "gold", "green", "orangered", "yellow", "yellowgreen"]
-const pick_color_iter = pickUnique(colors)
+export const pick_color_iter = pickUnique(colors)
 
 export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
 	declare left: Accessor<number>
@@ -147,17 +158,18 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 	}
 
 	splitChildLeft(
-		width: LengthUnit | LengthUnitLiteral,
+		width: AnyLength,
 		margin: DimensionXValue = {},
 	) {
-		if (typeof margin !== "function") {
-			margin.left ??= 0
-			margin.right ??= 0
-		}
+		// see NOTE1
+		//if (typeof margin !== "function") {
+		margin.left ??= 0
+		margin.right ??= 0
+		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getWidth, setWidth] = createStateIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
+			[getWidth, setWidth] = createStateIfPrimitive(parseLengthUnit(width)),
 			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
 			child_left = createMemo((id) => {
 				const { left: ml = 0, right: mr = 0 } = getMargin(id)
@@ -184,17 +196,18 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 	}
 
 	splitChildTop(
-		height: LengthUnit | LengthUnitLiteral,
+		height: AnyLength,
 		margin: DimensionYValue = {},
 	) {
-		if (typeof margin !== "function") {
-			margin.top ??= 0
-			margin.bottom ??= 0
-		}
+		// see NOTE1
+		//if (typeof margin !== "function") {
+		margin.top ??= 0
+		margin.bottom ??= 0
+		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getHeight, setHeight] = createStateIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
+			[getHeight, setHeight] = createStateIfPrimitive(parseLengthUnit(height)),
 			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
 			child_top = createMemo((id) => {
 				const { top: mt = 0, bottom: mb = 0 } = getMargin(id)
@@ -221,17 +234,18 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 	}
 
 	splitChildRight(
-		width: LengthUnit | LengthUnitLiteral,
+		width: AnyLength,
 		margin: DimensionXValue = {},
 	) {
-		if (typeof margin !== "function") {
-			margin.left ??= 0
-			margin.right ??= 0
-		}
+		// see NOTE1
+		//if (typeof margin !== "function") {
+		margin.left ??= 0
+		margin.right ??= 0
+		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getWidth, setWidth] = createStateIfPrimitive(typeof width === "string" ? parseLengthUnit(width) : width),
+			[getWidth, setWidth] = createStateIfPrimitive(parseLengthUnit(width)),
 			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, top: 0, bottom: 0 } as MarginValue),
 			child_left = createMemo((id) => {
 				const
@@ -258,17 +272,18 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 	}
 
 	splitChildBottom(
-		height: LengthUnit | LengthUnitLiteral,
+		height: AnyLength,
 		margin: DimensionYValue = {},
 	) {
-		if (typeof margin !== "function") {
-			margin.top ??= 0
-			margin.bottom ??= 0
-		}
+		// see NOTE1
+		//if (typeof margin !== "function") {
+		margin.top ??= 0
+		margin.bottom ??= 0
+		//}
 		const
 			freespace = this.getFreespaceChild(),
 			{ left, top, right, bottom } = freespace,
-			[getHeight, setHeight] = createStateIfPrimitive(typeof height === "string" ? parseLengthUnit(height) : height),
+			[getHeight, setHeight] = createStateIfPrimitive(parseLengthUnit(height)),
 			[getMargin, setMargin] = createStateIfPrimitive({ ...margin, left: 0, right: 0 } as MarginValue),
 			child_top = createMemo((id) => {
 				const
@@ -294,6 +309,31 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		return child_framesplit
 	}
 
+	/** hit test to see if this frame, or any of its deep children, get hit by the `(x, y)` coordinates. <br>
+	 * the deepest child hit by the hit ray will be returned, and an `undefined` will be returned if nothing was hit.
+	*/
+	hit(x: number, y: number): FrameSplit | undefined {
+		// first see if `this` is hit by the `(x, y)` point
+		if (this.left() <= x && x <= this.right() && this.top() <= y && y <= this.bottom()) {
+			// now, check if any child (besides freespace `children[0]`) also gets hit
+			// if yes, then that child should be prioritized and returned, else return `this` itself
+			const
+				children = this.children,
+				children_len = children.length
+			let
+				deep_child_that_has_been_hit: FrameSplit | undefined,
+				i = 0
+			while (++i < children_len) {
+				if (deep_child_that_has_been_hit = children[i].hit(x, y)) {
+					break
+				}
+			}
+			return deep_child_that_has_been_hit ?? this
+		}
+		// if `(x, y)` is out of bounds for `this`, then return an undefined
+		return
+	}
+
 	toString(): Object {
 		const
 			{ left, top, right, bottom, margin, width, height, set, children } = this,
@@ -317,7 +357,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		const
 			children = this.children,
 			children_len = children.length
-		if (children_len === 0) {
+		if (children_len <= 1 || color) {
 			const
 				{ left, top, right, bottom } = this,
 				x = left(),
@@ -328,7 +368,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 			ctx.fillRect(x, y, w, h)
 		}
 		for (let ch = 0; ch < children_len; ch++) {
-			children[ch].toPreview(ctx, ch === 0 ? "gray" : undefined)
+			children[ch].toPreview(ctx, ch === 0 ? (color ?? "gray") : undefined)
 		}
 	}
 }
+
