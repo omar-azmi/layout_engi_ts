@@ -1,7 +1,7 @@
 import { Accessor, Context, MemoSignal_Factory, Setter, StateSignal_Factory } from "./deps.ts"
-export type { Accessor, Setter } from "./deps.ts"
+export { type Accessor, type Setter, throttlingEquals } from "./deps.ts"
 
-const
+export const
 	signal_ctx = new Context(),
 	_createState = signal_ctx.addClass(StateSignal_Factory),
 	_createMemo = signal_ctx.addClass(MemoSignal_Factory)
