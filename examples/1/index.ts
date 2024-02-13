@@ -1,5 +1,5 @@
-import { Accessor, Setter, debounce } from "./deps.ts"
-import { AnyLength, FrameSplit as FrameSplitBase, LengthUnit, parseLengthUnit, stringifyLengthUnit } from "./framesplit.ts"
+import { Accessor, Setter, debounce } from "../../src/deps.ts"
+import { AnyLength, FrameSplit as FrameSplitBase, LengthUnit, parseLengthUnit, stringifyLengthUnit } from "../../src/framesplit.ts"
 
 const add_controller = (
 	signal_getter: Accessor<LengthUnit>,

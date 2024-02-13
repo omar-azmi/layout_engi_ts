@@ -1,5 +1,5 @@
-import { Setter, debounce, object_entries } from "./deps.ts"
-import { AnyLength, FrameSplit as FrameSplitBase, LengthUnit, MarginValue, parseLengthUnit, pick_color_iter, stringifyLengthUnit } from "./framesplit.ts"
+import { Setter, debounce, object_entries } from "../../src/deps.ts"
+import { AnyLength, FrameSplit as FrameSplitBase, LengthUnit, MarginValue, parseLengthUnit, pick_color_iter, stringifyLengthUnit } from "../../src/framesplit.ts"
 
 class FrameController {
 	HTMLElement: HTMLTableElement = document.createElement("table")

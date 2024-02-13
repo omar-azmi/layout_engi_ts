@@ -1,6 +1,6 @@
-import { EqualityCheck, EqualityFn, THROTTLE_REJECT, default_equality, dom_clearTimeout, dom_setTimeout, falsey_equality, math_random, newArray2D, noop, promiseTimeout, shuffleArray, throttle } from "../src/deps.ts"
-import { Grid } from "../src/grid.ts"
-import { _createMemo, createMemo, signal_ctx } from "../src/signal.ts"
+import { EqualityCheck, EqualityFn, THROTTLE_REJECT, default_equality, dom_clearTimeout, dom_setTimeout, falsey_equality, math_random, newArray2D, noop, promiseTimeout, shuffleArray, throttle } from "../../src/deps.ts"
+import { Grid } from "../../src/grid.ts"
+import { _createMemo, createMemo, signal_ctx } from "../../src/signal.ts"
 
 const app_config = {
 	loading: 3000,
@@ -38,7 +38,7 @@ const loadImage = async (row: number, col: number): Promise<void> => {
 	const img = new Image()
 	image_matrix[row][col] = img
 	img.onload = () => { plotImage(row, col) }
-	img.src = `./grid.test_1.data/${row},${col}.jpg`
+	img.src = `./grid_images/${row},${col}.jpg`
 }
 
 const loadAllImages = async (simulate_loading_time = 0) => {

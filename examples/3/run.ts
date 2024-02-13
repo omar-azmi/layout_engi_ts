@@ -1,4 +1,4 @@
-import { Grid } from "../src/grid.ts"
+import { Grid } from "../../src/grid.ts"
 
 // run example
 const grid = Grid.fromCells([
