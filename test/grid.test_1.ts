@@ -1,5 +1,5 @@
 import { EqualityCheck, EqualityFn, THROTTLE_REJECT, default_equality, dom_clearTimeout, dom_setTimeout, falsey_equality, math_random, newArray2D, noop, promiseTimeout, shuffleArray, throttle } from "../src/deps.ts"
-import { GridRightAligned } from "../src/grid.ts"
+import { Grid } from "../src/grid.ts"
 import { _createMemo, createMemo, signal_ctx } from "../src/signal.ts"
 
 const app_config = {
@@ -29,7 +29,7 @@ const throttleAndTrailingEquals = <T>(trailing_time_ms: number, delta_time_ms: n
 const
 	rows = 8,
 	cols = 10,
-	grid = new GridRightAligned({ rows: rows, cols: cols, colAlign: ["end"], rowAlign: ["center"], colGap: [30], rowGap: [30] }),
+	grid = new Grid({ rows: rows, cols: cols, originAlign: "right", colAlign: ["end"], rowAlign: ["center"], colGap: [30], rowGap: [30] }),
 	scale = [0.1, 0.1, 0.25, 1.5 / 4, 0.25, 1.5 / 4, 1.75 / 4, 1.25 / 4]
 
 let image_matrix: HTMLImageElement[][]

@@ -1,9 +1,16 @@
-import { number_POSITIVE_INFINITY, Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, cumulativeSum, math_abs, math_cos, math_max, math_sin, newArray2D, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
+import { Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, cumulativeSum, math_abs, math_cos, math_max, math_sin, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
 import { Accessor, Setter, createMemo, createState } from "./signal.ts"
 
 /** a number between 0 and 1 (inclusive) */
 export type UnitNumber = number
 export type AlignOption = UnitNumber | "start" | "center" | "end"
+type OriginVerticalAlignSingleOption = "top" | "bottom"
+type OriginHorizontalAlignSingleOption = "left" | "right"
+type OriginHorizontalAlignDelimiter = "-" | ""
+export type OriginAlignOption =
+	| OriginVerticalAlignSingleOption | OriginHorizontalAlignSingleOption | ""
+	| `${OriginVerticalAlignSingleOption}${OriginHorizontalAlignDelimiter}${OriginHorizontalAlignSingleOption}`
+	| `${OriginHorizontalAlignSingleOption}${OriginHorizontalAlignDelimiter}${OriginVerticalAlignSingleOption}`
 
 /** an object describing the frame allotted to a {@link GridCell | cell} within a {@link Grid | grid}. <br>
  * the {@link left}, {@link top}, {@link right}, and {@link bottom} properties tell you the 4 edges of the frame reserved specifically to your {@link GridCell | cell},
@@ -83,6 +90,18 @@ export interface GridInit {
 	cols: number
 	/** initial number of rows in the grid. */
 	rows: number
+	/** control which corner the origin gets aligned to. default behavior is `"top-left"`. <br>
+	 * the origin is where the first-row-first-column item gets placed in.
+	 * 
+	 * so if you were to set this option to `"right"`:
+	 * - the first-column will be positioned to the right-most location (instead of left-most),
+	 * - while the last-column will be positioned to the left-most position (instead of right-most) within the grid.
+	 * 
+	 * and if you were to set this option to `"bottom-right"`:
+	 * - the first-row and first-column will be positioned to the bottom-right-most position (instead of top-left-most),
+	 * - while the last-row and last-column will be positioned to the top-left-most position (instead of bottom-right-most) within the grid.
+	*/
+	originAlign?: OriginAlignOption
 	/** optional column-wise default width of empty cells. */
 	colWidth?: number[]
 	/** optional row-wise default height of empty cells. */
@@ -118,6 +137,7 @@ export interface GridInit {
 export class Grid implements NonNullable<GridInit> {
 	cols!: GridInit["cols"]
 	rows!: GridInit["rows"]
+	originAlign!: NonNullable<GridInit["originAlign"]>
 	colWidth!: NonNullable<GridInit["colWidth"]>
 	rowHeight!: NonNullable<GridInit["rowHeight"]>
 	colMinWidth!: NonNullable<GridInit["colMinWidth"]>
@@ -195,7 +215,11 @@ export class Grid implements NonNullable<GridInit> {
 	getCellFrames: Accessor<CellFrameInfo[][]> = createMemo<CellFrameInfo[][]>((id) => {
 		console.log("recomputing cellFrames")
 		const
-			{ rows, cols, cells, colGap, rowGap, colAlign: colAlignGlobal, rowAlign: rowAlignGlobal, getColWidths, getRowHeights } = this,
+			{
+				rows, cols, cells, originAlign, colGap, rowGap,
+				colAlign: colAlignGlobal, rowAlign: rowAlignGlobal,
+				getColWidths, getRowHeights,
+			} = this,
 			colGap_len = colGap.length,
 			rowGap_len = rowGap.length,
 			colAlignGlobal_len = colAlignGlobal.length,
@@ -232,13 +256,40 @@ export class Grid implements NonNullable<GridInit> {
 				}
 			}
 		}
+		// by this point, all `cell_frames`'s positions are based on the `"top-left"` origin alignment.
+		// if the origin is deemed to be placed on a different corner, then we'll simply apply the following transformations:
+		// - if (origin is on right-corner): (new_cell_frames[r][c].right = grid_total_width - cell_frames[r][c].left) && (new_cell_frames[r][c].left = grid_total_width - cell_frames[r][c].right)
+		// - if (origin is on bottom-corner): (new_cell_frames[r][c].bottom = grid_total_height - cell_frames[r][c].top) && (new_cell_frames[r][c].top = grid_total_height - cell_frames[r][c].bottom)
+		const
+			reverse_horizontal = originAlign.includes("right"),
+			reverse_vertical = originAlign.includes("bottom")
+		if (reverse_horizontal || reverse_vertical) {
+			const
+				grid_total_width = (left_vals.at(-1) ?? 0) + (colWidths.at(-1) ?? 0),
+				grid_total_height = (top_vals.at(-1) ?? 0) + (rowHeights.at(-1) ?? 0)
+			for (let r = 0; r < rows; r++) {
+				for (let c = 0; c < cols; c++) {
+					const
+						cell_frame = cell_frames[r][c],
+						{ top, left, bottom, right } = cell_frame
+					if (reverse_horizontal) {
+						cell_frame.right = grid_total_width - left
+						cell_frame.left = grid_total_width - right
+					}
+					if (reverse_vertical) {
+						cell_frame.bottom = grid_total_height - top
+						cell_frame.top = grid_total_height - bottom
+					}
+				}
+			}
+		}
 		return cell_frames
 	})
 
 	constructor(config: GridInit) {
 		const
 			{
-				rows, cols,
+				rows, cols, originAlign = "",
 				colWidth = [0], rowHeight = [0],
 				colMinWidth = [0], rowMinHeight = [0],
 				colMaxWidth = [number_POSITIVE_INFINITY], rowMaxHeight = [number_POSITIVE_INFINITY],
@@ -252,7 +303,7 @@ export class Grid implements NonNullable<GridInit> {
 			cells = newArray2D<GridCell>(rows, cols)
 		for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { cells[r][c] = {} } }
 		Object.assign(this, {
-			rows, cols, colWidth, rowHeight, colGap, rowGap,
+			rows, cols, originAlign, colWidth, rowHeight, colGap, rowGap,
 			colMinWidth, rowMinHeight, colMaxWidth, rowMaxHeight,
 			colAlign: parse_alignments(colAlign),
 			rowAlign: parse_alignments(rowAlign),
@@ -409,86 +460,3 @@ export class Grid implements NonNullable<GridInit> {
 		return grid
 	}
 }
-
-/** a top-right-aligned version of the {@link Grid | top-left-aligned `Grid`} layout.
- * the first-column will be positioned to the right-most position (instead of left-most),
- * while the last-column will be positioned to the left-most position (instead of right-most) within the grid.
-*/
-export class GridRightAligned extends Grid {
-	constructor(config: GridInit) {
-		super(config)
-		const { getCellFrames: original_getCellFrames } = this
-		const right_aligned_getCellFrames = createMemo((id) => {
-			const
-				cell_frames = original_getCellFrames(id),
-				// the width of the entire grid can be simply determined by looking at one of the right-most-cell (last column) frame's right boundary
-				gridWidth = cell_frames?.at(0)?.at(-1)?.right ?? 0
-			for (const cells_in_row of cell_frames) {
-				for (const cell of cells_in_row) {
-					const { left, right } = cell
-					cell.right = gridWidth - left
-					cell.left = gridWidth - right
-				}
-			}
-			return cell_frames
-		})
-		this.getCellFrames = right_aligned_getCellFrames
-	}
-}
-
-/** a bottom-left-aligned version of the {@link Grid | top-left-aligned `Grid`} layout.
- * the first-row will be positioned to the bottom-most position (instead of top-most),
- * while the last-row will be positioned to the top-most position (instead of bottom-most) within the grid.
-*/
-export class GridBottomAligned extends Grid {
-	constructor(config: GridInit) {
-		super(config)
-		const { getCellFrames: original_getCellFrames } = this
-		const right_aligned_getCellFrames = createMemo((id) => {
-			const
-				cell_frames = original_getCellFrames(id),
-				// the height of the entire grid can be simply determined by looking at one of the bottom-most-cell (last row) frame's bottom boundary
-				gridHeight = cell_frames?.at(-1)?.at(0)?.bottom ?? 0
-			for (const cells_in_row of cell_frames) {
-				for (const cell of cells_in_row) {
-					const { top, bottom } = cell
-					cell.bottom = gridHeight - top
-					cell.top = gridHeight - bottom
-				}
-			}
-			return cell_frames
-		})
-		this.getCellFrames = right_aligned_getCellFrames
-	}
-}
-
-/** a bottom-right-aligned version of the {@link Grid | top-left-aligned `Grid`} layout.
- * the first-row and first-column will be positioned to the bottom-right-most position (instead of top-left-most),
- * while the last-row and last-column will be positioned to the top-left-most position (instead of bottom-right-most) within the grid.
-*/
-export class GridBottomRightAligned extends Grid {
-	constructor(config: GridInit) {
-		super(config)
-		const { getCellFrames: original_getCellFrames } = this
-		const right_aligned_getCellFrames = createMemo((id) => {
-			const
-				cell_frames = original_getCellFrames(id),
-				// the width of the entire grid can be simply determined by looking at one of the right-most-cell (last column) frame's right boundary
-				gridWidth = cell_frames?.at(0)?.at(-1)?.right ?? 0,
-				// the height of the entire grid can be simply determined by looking at one of the bottom-most-cell (last row) frame's bottom boundary
-				gridHeight = cell_frames?.at(-1)?.at(0)?.bottom ?? 0
-			for (const cells_in_row of cell_frames) {
-				for (const cell of cells_in_row) {
-					const { top, bottom, left, right } = cell
-					cell.bottom = gridHeight - top
-					cell.top = gridHeight - bottom
-					cell.right = gridWidth - left
-					cell.left = gridWidth - right
-				}
-			}
-			return cell_frames
-		})
-		this.getCellFrames = right_aligned_getCellFrames
-	}
-}
-
