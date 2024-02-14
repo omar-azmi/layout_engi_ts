@@ -5,7 +5,18 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>example 4: grid of images</title>
-	<script src="./index.ts" type="module"></script>
+	<!-- <script src="./index.ts" type="module"></script> -->
+	<script>
+		globalThis.addEventListener("DOMContentLoaded", async () => {
+			const { grid } = await import("./index.ts")
+			window.grid = grid
+		})
+	</script>
+	<style>
+		canvas {
+			cursor: pointer;
+		}
+	</style>
 </head>
 
 <body style="width: 100vw; height: 100vh;"></body>
