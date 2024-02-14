@@ -1,16 +1,18 @@
-import { Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, cumulativeSum, math_abs, math_cos, math_max, math_sin, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
-import { Accessor, Setter, createMemo, createState } from "./signal.ts"
+/** this module provides you with the {@link Grid | `Grid`} class, which lets you compute the positions of cells within a grid layout.
+ * 
+ * @example
+ * ```ts
+ * // TODO
+ * ```
+ * 
+ * @module
+*/
 
-/** a number between 0 and 1 (inclusive) */
-export type UnitNumber = number
-export type AlignOption = UnitNumber | "start" | "center" | "end"
-type OriginVerticalAlignSingleOption = "top" | "bottom"
-type OriginHorizontalAlignSingleOption = "left" | "right"
-type OriginHorizontalAlignDelimiter = "-" | ""
-export type OriginAlignOption =
-	| OriginVerticalAlignSingleOption | OriginHorizontalAlignSingleOption | ""
-	| `${OriginVerticalAlignSingleOption}${OriginHorizontalAlignDelimiter}${OriginHorizontalAlignSingleOption}`
-	| `${OriginHorizontalAlignSingleOption}${OriginHorizontalAlignDelimiter}${OriginVerticalAlignSingleOption}`
+import { Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, math_max, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
+import { alignmentToNumber, boundboxOfRotatedRect, parseAlignments, zeroCumulativeSum } from "./funcdefs.ts"
+import { Accessor, Setter, createMemo, createState } from "./signal.ts"
+import { AlignOption, OriginAlignOption } from "./typedefs.ts"
+
 
 /** an object describing the frame allotted to a {@link GridCell | cell} within a {@link Grid | grid}. <br>
  * the {@link left}, {@link top}, {@link right}, and {@link bottom} properties tell you the 4 edges of the frame reserved specifically to your {@link GridCell | cell},
@@ -41,35 +43,7 @@ export interface CellFrameInfo {
 	rotation?: number
 }
 
-const
-	alignment_to_number = (alignment: AlignOption, reverse: boolean = false): UnitNumber => {
-		if (typeof alignment === "string") {
-			alignment = alignment === "start" ? 0 : alignment === "end" ? 1 : 0.5
-		}
-		return reverse ? 1 - alignment : alignment
-	},
-	parse_alignments = (alignments: AlignOption | AlignOption[], reverse: boolean = false): UnitNumber[] => {
-		alignments = Array.isArray(alignments) ? alignments : [alignments]
-		return alignments.map((v) => alignment_to_number(v, reverse))
-	},
-	zeroCumulativeSum = (arr: number[]): number[] => {
-		const cum_sum = cumulativeSum(arr)
-		cum_sum.pop()
-		return cum_sum
-	},
-	/** get the bounding box width and height of a rectangle that has been rotated at its center */
-	get_rotated_bound_box = (width: number, height: number, rotation?: number): { width: number, height: number } => {
-		if (!rotation) { return { width, height } }
-		const
-			abs_cos_rot = math_abs(math_cos(rotation)),
-			abs_sin_rot = math_abs(math_sin(rotation))
-		return {
-			width: width * abs_cos_rot + height * abs_sin_rot,
-			height: width * abs_sin_rot + height * abs_cos_rot
-		}
-	}
-
-
+/** sets the sizing and alignment configuration of a cell within a {@link Grid | `Grid`}. */
 export interface GridCell {
 	/** declare absolute width of cell. overrides parent {@link Grid | grid's} {@link Grid.rowAlign | `rowAlign`}, just for this child element. */
 	width?: number
@@ -85,6 +59,10 @@ export interface GridCell {
 	rotation?: number
 }
 
+/** initial options that customize {@link `Grid`}.
+ * these options are also exposed as members of the {@link Grid | grid instance}, and may also be modified by the user.
+ * however, you will need to call {@link Grid.setDirty | `setDirty`} method afterwards to have the layout computation rerun.
+*/
 export interface GridInit {
 	/** initial number of columns in the grid. */
 	cols: number
@@ -134,6 +112,8 @@ export interface GridInit {
 	rowGap?: number[]
 }
 
+
+/** the grid layout class provides a way for you to compute the locations of sprites had they been organized in a grid. */
 export class Grid implements NonNullable<GridInit> {
 	cols!: GridInit["cols"]
 	rows!: GridInit["rows"]
@@ -178,7 +158,7 @@ export class Grid implements NonNullable<GridInit> {
 				const
 					{ width: sprite_width, height: sprite_height = 0, rotation } = cell,
 					width = sprite_width !== undefined ?
-						get_rotated_bound_box(sprite_width, sprite_height, rotation).width :
+						boundboxOfRotatedRect(sprite_width, sprite_height, rotation).width :
 						default_width
 				return clamp(width, min_width, max_width)
 			}))
@@ -204,7 +184,7 @@ export class Grid implements NonNullable<GridInit> {
 				const
 					{ width: sprite_width = 0, height: sprite_height, rotation } = cell,
 					height = sprite_height !== undefined ?
-						get_rotated_bound_box(sprite_width, sprite_height, rotation).height :
+						boundboxOfRotatedRect(sprite_width, sprite_height, rotation).height :
 						default_height
 				return clamp(height, min_height, max_height)
 			}))
@@ -244,8 +224,8 @@ export class Grid implements NonNullable<GridInit> {
 						colAlign = colAlignGlobal[c % colAlignGlobal_len],
 						rowAlign = rowAlignGlobal[r % rowAlignGlobal_len],
 					} = cells[r][c],
-					colAlign_val = alignment_to_number(colAlign),
-					rowAlign_val = alignment_to_number(rowAlign),
+					colAlign_val = alignmentToNumber(colAlign),
+					rowAlign_val = alignmentToNumber(rowAlign),
 					anchorX = anchorSelfX ?? colAlign_val,
 					anchorY = anchorSelfY ?? rowAlign_val,
 					x = thisColWidth * colAlign_val - width * anchorX,
@@ -305,8 +285,8 @@ export class Grid implements NonNullable<GridInit> {
 		Object.assign(this, {
 			rows, cols, originAlign, colWidth, rowHeight, colGap, rowGap,
 			colMinWidth, rowMinHeight, colMaxWidth, rowMaxHeight,
-			colAlign: parse_alignments(colAlign),
-			rowAlign: parse_alignments(rowAlign),
+			colAlign: parseAlignments(colAlign),
+			rowAlign: parseAlignments(rowAlign),
 			isDirty, setDirty, cells,
 		})
 		this.getCellFrames() // update the cell frames matrix
@@ -459,4 +439,10 @@ export class Grid implements NonNullable<GridInit> {
 		grid.pushRows(...cells)
 		return grid
 	}
+
+	// TODO: implement this. see its {@link FrameSplit.hit} analog
+	hit(x: number, y: number): [row: number, col: number] | undefined { return }
+
+	// TODO: implement this debug-only method, with an implementation similar to {@link FrameSplit.toPreview}
+	toPreview(ctx: CanvasRenderingContext2D, color?: string) { }
 }

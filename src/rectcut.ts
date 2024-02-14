@@ -1,7 +1,34 @@
+/** just an experimental layout system based on [Rectcut](https://halt.software/dead-simple-layouts/),
+ * along with the ability to record history.
+ * @module
+*/
+
 import { ConstructorOf, MethodsOf, max, min } from "./deps.ts"
-import {SpriteRect, FrameZCInfo} from "./typedefs.ts"
 
 type InstanceLike<T> = InstanceType<ConstructorOf<T>>
+
+interface SpriteRect {
+	/** spirit's (unrotated) x-position relative frame's top-left position */
+	x: number
+	/** spirit's (unrotated) y-position relative frame's top-left position */
+	y: number
+	/** spirit's width */
+	width: number
+	/** spirit's height */
+	height: number
+}
+
+/** a zero-content frame (ie a pure frame). it is here merely for extending. */
+interface FrameZCInfo {
+	/** rectangular frame's left position (x-coordinates) */
+	left: number
+	/** rectangular frame's top position (y-coordinates) */
+	top: number
+	/** rectangular frame's right position (x-coordinates) */
+	right: number
+	/** rectangular frame's bottom position (y-coordinates) */
+	bottom: number
+}
 
 interface ActionHistoryEntry<T, FN extends keyof MethodsOf<T> = keyof MethodsOf<T>> {
 	node: T,
@@ -147,8 +174,8 @@ class FrameCut implements FrameZCInfo {
 	}
 
 	static executeAction(action_description: ActionHistoryEntry<FrameCut>, history: ActionHistoryEntry<FrameCut>[] = []) {
-		const {node, action, args} = action_description
-		if(action === "constructor") {
+		const { node, action, args } = action_description
+		if (action === "constructor") {
 			return new FrameCut.createRecordable(history, ...args)
 		} else if (FrameCut.recordable_cut_methods.has(action)) {
 			return node[action](...args)

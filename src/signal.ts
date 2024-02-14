@@ -1,6 +1,8 @@
 import { Accessor, Context, MemoSignal_Factory, Setter, StateSignal_Factory } from "./deps.ts"
 export { type Accessor, type Setter, throttlingEquals } from "./deps.ts"
 
+// TODO: find an appropriate name for `signal_ctx`, `_createState`, and `_createMemo`, so that it is exportable to the end user,
+// and so that they understand their purpose and their differences from the convenience `createState` and `createMemo` counterparts.
 export const
 	signal_ctx = new Context(),
 	_createState = signal_ctx.addClass(StateSignal_Factory),

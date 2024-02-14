@@ -1,5 +1,7 @@
 import { Setter, debounce, object_entries } from "../../src/deps.ts"
-import { AnyLength, FrameSplit as FrameSplitBase, LengthUnit, MarginValue, parseLengthUnit, pick_color_iter, stringifyLengthUnit } from "../../src/framesplit.ts"
+import { FrameSplit as FrameSplitBase, MarginValue } from "../../src/framesplit.ts"
+import { parseLengthUnit, stringifyLengthUnit } from "../../src/funcdefs.ts"
+import { AnyLength, LengthUnit } from "../../src/typedefs.ts"
 
 class FrameController {
 	HTMLElement: HTMLTableElement = document.createElement("table")
@@ -56,10 +58,10 @@ class FrameSplit extends FrameSplitBase {
 // run
 const
 	layout = new FrameSplit(0, 100, 700, 700),
-	lpane = layout.splitChildLeft({ px: 100, vw: 0.5 }),
-	rpane = layout.splitChildRight({ vw: 0.25 }),
-	center = layout.splitChildBottom("300px + 0.25vh", { bottom: 50 })
-rpane.splitChildTop({ px: -200 / 2, vh: 0.5 })
+	lpane = layout.splitChildLeft({ px: 100, pw: 0.5 }),
+	rpane = layout.splitChildRight({ pw: 0.25 }),
+	center = layout.splitChildBottom("300px + 0.25ph", { bottom: 50 })
+rpane.splitChildTop({ px: -200 / 2, ph: 0.5 })
 rpane.splitChildTop(200)
 
 const
@@ -93,13 +95,13 @@ if (dynamic) {
 			w += 14 / 3 * w_sign
 			if (w < 0) { w_sign = 1 }
 			else if (w > 400) { w_sign = -1 }
-			lpane.set.width!({ px: w, vw: 0.1, vh: 0 })
+			lpane.set.width!({ px: w, pw: 0.1, ph: 0 })
 		}
 		const h_fn = () => {
 			h += 10 / 3 * h_sign
 			if (h < 0) { h_sign = 1 }
 			else if (h > 600) { h_sign = -1 }
-			center.set.height!({ px: h, vh: 0.1 })
+			center.set.height!({ px: h, ph: 0.1 })
 		}
 		const panx_fn = () => {
 			layout.set.left!((prev = 0) => (prev + 1))

@@ -1,4 +1,6 @@
 import type { Array2DRowMajor } from "https://deno.land/x/kitchensink_ts@v0.7.2/array2d.ts"
+import { array_isEmpty } from "https://deno.land/x/kitchensink_ts@v0.7.2/builtin_aliases_deps.ts"
+import { max } from "https://deno.land/x/kitchensink_ts@v0.7.2/numericmethods.ts"
 export { Array2DShape, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor, transposeArray2D } from "https://deno.land/x/kitchensink_ts@v0.7.2/array2d.ts"
 export type { Array2D, Array2DColMajor, Array2DRowMajor } from "https://deno.land/x/kitchensink_ts@v0.7.2/array2d.ts"
 export { dom_clearTimeout, dom_setTimeout, noop, number_POSITIVE_INFINITY } from "https://deno.land/x/kitchensink_ts@v0.7.2/builtin_aliases_deps.ts"
@@ -38,4 +40,29 @@ export const shuffleArray = <T>(arr: Array<T>): Array<T> => {
 
 export const newArray2D = <T>(rows: number, cols: number, fill?: T): Array2DRowMajor<T> => {
 	return Array(rows).fill(undefined).map(() => Array(cols).fill(fill))
+}
+
+// TODO: add to kitchensink_ts
+/** a generator that yields random selected non-repeating elements out of an array.
+ * once the all elements have been yielded, a cycle has been completed.
+ * after a cycle is completed the iterator resets to a new cycle, yielding randomly selected elements once again.
+ * the ordering of the randomly yielded elements will also differ from compared to the first time. <br>
+ * moreover, you can call the iterator with an optional number argument that specifies if you wish to skip ahead a certain number of elements.
+ * - `1`: go to next element (default behavior)
+ * - `0`: receive the same element as before
+ * - `-1`: go to previous next element
+ * - `+ve number`: skip to next `number` of elements
+ * - `-ve number`: go back `number` of elements
+ * 
+ * note that once a cycle is complete, going back won't restore the correct element from the previous cycle, because the info about the previous cycle gets lost.
+*/
+export const shuffledDeque = function* <T>(arr: Array<T>): Generator<T, void, number | undefined> {
+	let i = arr.length // this is only temporary. `i` immediately becomes `0` when the while loop begins
+	while (!array_isEmpty(arr)) {
+		if (i >= arr.length) {
+			i = 0
+			shuffleArray(arr)
+		}
+		i = max(i + ((yield arr[i]) ?? 1), 0)
+	}
 }

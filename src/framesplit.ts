@@ -1,45 +1,8 @@
-import { constructFrom, max, min, number_isFinite } from "./deps.ts"
+import { constructFrom, max, min, shuffledDeque } from "./deps.ts"
+import { parseLengthUnit } from "./funcdefs.ts"
 import { Accessor, Setter, createMemo, createStateIfPrimitive } from "./signal.ts"
+import { AnyLength, AnyNumber, LengthUnit } from "./typedefs.ts"
 
-type CombinationLiteral<A extends string, B extends string, SEP extends string = "+" | " + "> = A | `${A}${SEP}${B}` | B
-
-type PixelUnitLiteral = `${number}px`
-type ViewWidthUnitLiteral = `${number}vw`
-type ViewHeightUnitLiteral = `${number}vh`
-export type LengthUnitLiteral = CombinationLiteral<PixelUnitLiteral, CombinationLiteral<ViewWidthUnitLiteral, ViewHeightUnitLiteral>>
-export interface LengthUnit {
-	px?: number
-	vw?: number
-	vh?: number
-}
-export type AnyLength = LengthUnit | LengthUnitLiteral | number | `{number}`
-
-const length_unit_name_iter = ["px", "vw", "vh"] as const
-const parseLengthUnitLiteral = (str: LengthUnitLiteral): LengthUnit => {
-	const length_units: Required<LengthUnit> = { px: 0, vw: 0, vh: 0 }
-	for (const unit_str of str.split("+")) {
-		const
-			unit_str_trimmed = unit_str.trim(),
-			value: number = + unit_str_trimmed.slice(0, -2),
-			unit = unit_str_trimmed.slice(-2) as keyof LengthUnit
-		length_units[unit] += value
-	}
-	return length_units
-}
-export const parseLengthUnit = (length: AnyLength): Partial<LengthUnit> => {
-	if (typeof length === "object") { return length }
-	const px_only_length = Number(length)
-	if (number_isFinite(px_only_length)) { return { px: px_only_length } }
-	return parseLengthUnitLiteral(length as LengthUnitLiteral)
-}
-export const stringifyLengthUnit = (length: AnyLength): LengthUnitLiteral => {
-	const length_unit = parseLengthUnit(length)
-	return length_unit_name_iter.map(
-		(unit_name) => (String(length_unit[unit_name] ?? 0) + unit_name)
-	).join(" + ") as LengthUnitLiteral
-}
-
-type AnyNumber = number | Accessor<number>
 
 interface DimensionXValue {
 	left?: number
@@ -73,25 +36,8 @@ export type MarginSetter = Setter<MarginValue>
 
 const ltrb_iter = ["left", "top", "right", "bottom"] as const
 
-const uniqueIndexes = (max_value: number, quantity: number) => {
-	const number_set = new Set<number>()
-	while (number_set.size < quantity) {
-		number_set.add(Math.floor(Math.random() * max_value))
-	}
-	return Array.from(number_set)
-}
-const pickUnique = function* <T>(arr: T[]) {
-	let
-		len = arr.length,
-		idxs = uniqueIndexes(len - 1, len - 1)
-	while (true) {
-		for (const i of idxs) {
-			yield arr[i]
-		}
-	}
-}
 const colors = ["aqua", "aquamarine", "antiquewhite", "blue", "brown", "blueviolet", "chartreuse", "crimson", "darkkhaki", "darkorange", "darksalmon", "fuchsia", "gold", "green", "orangered", "yellow", "yellowgreen"]
-export const pick_color_iter = pickUnique(colors)
+export const pick_color_iter = shuffledDeque(colors)
 
 export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
 	declare left: Accessor<number>
@@ -163,8 +109,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 					r = max(right(id) - mr, l),
 					t = top(id),
 					b = bottom(id),
-					{ px = 0, vw = 0, vh = 0 } = getWidth(id)
-				return min(l + px + (r - l) * vw + (b - t) * vh, r)
+					{ px = 0, pw = 0, ph = 0 } = getWidth(id)
+				return min(l + px + (r - l) * pw + (b - t) * ph, r)
 			}),
 			child_framesplit = constructFrom(this, child_left, top, child_right, bottom)
 		child_framesplit.margin = getMargin
@@ -198,8 +144,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 					r = right(id),
 					t = top(id) + mt,
 					b = max(bottom(id) - mb, t),
-					{ px = 0, vw = 0, vh = 0 } = getHeight(id)
-				return min(t + px + (r - l) * vw + (b - t) * vh, b)
+					{ px = 0, pw = 0, ph = 0 } = getHeight(id)
+				return min(t + px + (r - l) * pw + (b - t) * ph, b)
 			}),
 			child_framesplit = constructFrom(this, left, child_top, right, child_bottom)
 		child_framesplit.margin = getMargin
@@ -229,8 +175,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 					r = max(right(id) - mr, l),
 					t = top(id),
 					b = bottom(id),
-					{ px = 0, vw = 0, vh = 0 } = getWidth(id)
-				return max(r - px - (r - l) * vw - (b - t) * vh, l)
+					{ px = 0, pw = 0, ph = 0 } = getWidth(id)
+				return max(r - px - (r - l) * pw - (b - t) * ph, l)
 			}),
 			child_right = createMemo((id) => {
 				const { left: ml = 0, right: mr = 0 } = getMargin(id)
@@ -264,8 +210,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 					r = right(id),
 					t = top(id) + mt,
 					b = max(bottom(id) - mb, t),
-					{ px = 0, vw = 0, vh = 0 } = getHeight(id)
-				return max(b - px - (r - l) * vw - (b - t) * vh, t)
+					{ px = 0, pw = 0, ph = 0 } = getHeight(id)
+				return max(b - px - (r - l) * pw - (b - t) * ph, t)
 			}),
 			child_bottom = createMemo((id) => {
 				const { top: mt = 0, bottom: mb = 0 } = getMargin(id)
@@ -281,6 +227,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		return child_framesplit
 	}
 
+	// TODO: I think this method belongs either to a subclass, or a separate function that takes `this` as the first argument.
 	/** hit test to see if this frame, or any of its deep children, get hit by the `(x, y)` coordinates. <br>
 	 * the deepest child hit by the hit ray will be returned, and an `undefined` will be returned if nothing was hit.
 	*/
@@ -306,6 +253,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		return
 	}
 
+	// TODO: this debugging method should either exist in a subclass or a separate function that takes `this` as the first argument.
 	toString(): Object {
 		const
 			{ left, top, right, bottom, margin, width, height, set, children } = this,
@@ -325,6 +273,8 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		return obj
 	}
 
+	// TODO: this helper method needs to be placed in a separate subclass, or perhaps as a subclass in one of the tests,
+	// or perhaps as a debug-only option, or perhaps define it as a separate function that takes an instance of this class as the first argument.
 	toPreview(ctx: CanvasRenderingContext2D, color?: string) {
 		const
 			children = this.children,
@@ -336,7 +286,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 				y = top(),
 				w = right() - x,
 				h = bottom() - y
-			ctx.fillStyle = color ?? pick_color_iter.next().value
+			ctx.fillStyle = color ?? pick_color_iter.next().value!
 			ctx.fillRect(x, y, w, h)
 		}
 		for (let ch = 0; ch < children_len; ch++) {
