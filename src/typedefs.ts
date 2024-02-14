@@ -3,6 +3,34 @@ import { Accessor } from "./deps.ts"
 /** a number between 0 and 1 (inclusive) */
 export type UnitNumber = number
 
+export interface SizedRect {
+	width: number
+	height: number
+}
+
+export interface PositionedRect {
+	x: number
+	y: number
+}
+
+export interface RotatedRect {
+	/** describes rotation of a rectangle relative to its own center.
+	 * the rotation should be applied *after* the rectangle has been positioned at its `(x, y)` coordinates.
+	*/
+	rotation: number
+}
+
+export type Sprite = SizedRect & PositionedRect & Partial<RotatedRect>
+
+// TODO: consider whether or not the callback argument has any value to it, or if it can be discarded, or perhaps it my be a bad programming pattern
+export interface Hit<T> {
+	hit(x: number, y: number, callback?: () => void): T | undefined
+}
+
+export interface Render {
+	render(ctx: CanvasRenderingContext2D): void
+}
+
 
 /// Grid related
 

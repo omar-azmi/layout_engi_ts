@@ -8,10 +8,10 @@
  * @module
 */
 
-import { Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, math_max, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
-import { alignmentToNumber, boundboxOfRotatedRect, parseAlignments, zeroCumulativeSum } from "./funcdefs.ts"
+import { Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, cumulativeSum, math_max, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
+import { alignmentToNumber, boundboxOfRotatedRect, parseAlignments } from "./funcdefs.ts"
 import { Accessor, Setter, createMemo, createState } from "./signal.ts"
-import { AlignOption, OriginAlignOption } from "./typedefs.ts"
+import { AlignOption, Hit, OriginAlignOption, Sprite } from "./typedefs.ts"
 
 
 /** an object describing the frame allotted to a {@link GridCell | cell} within a {@link Grid | grid}. <br>
@@ -22,7 +22,7 @@ import { AlignOption, OriginAlignOption } from "./typedefs.ts"
  * the {@link rotation} property tells you how much rotation (in radians) to apply to the center of the sprite.
  * the rotation is about the sprite's center so that it does not alter {@link x} and {@link y} no matter its value. (ie the three properties {@link x}, {@link y}, and {@link rotation} are independent/invariant of each other).
 */
-export interface CellFrameInfo {
+export interface CellFrameInfo extends Sprite {
 	/** rectangular frame's left position (x-coordinates) relative to the parent {@link Grid | grid's left-coordinates}. */
 	left: number
 	/** rectangular frame's top position (y-coordinates) relative to the parent {@link Grid | grid's top-coordinates}. */
@@ -114,7 +114,7 @@ export interface GridInit {
 
 
 /** the grid layout class provides a way for you to compute the locations of sprites had they been organized in a grid. */
-export class Grid implements NonNullable<GridInit> {
+export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: number]> {
 	cols!: GridInit["cols"]
 	rows!: GridInit["rows"]
 	originAlign!: NonNullable<GridInit["originAlign"]>
@@ -140,6 +140,7 @@ export class Grid implements NonNullable<GridInit> {
 	/** resume reactivity of {@link isDirty | `isDirty`} accessor, if it had previously been pasued by {@link pauseReactivity} */
 	resumeReactivity() { this.paused = false }
 
+	/** get the width of each column in the grid. the widths do not incorporate the length of any column-gaps in-between (invariant to it). */
 	getColWidths: Accessor<number[]> = createMemo<number[]>((id) => {
 		this.isDirty(id)
 		console.log("recomputing colWidths")
@@ -166,6 +167,7 @@ export class Grid implements NonNullable<GridInit> {
 		return max_widths
 	})
 
+	/** get the height of each row in the grid. the heights do not incorporate the length of any row-gaps in-between (invariant to it). */
 	getRowHeights: Accessor<number[]> = createMemo<number[]>((id) => {
 		this.isDirty(id)
 		console.log("recomputing rowHeights")
@@ -192,22 +194,50 @@ export class Grid implements NonNullable<GridInit> {
 		return max_heights
 	})
 
-	getCellFrames: Accessor<CellFrameInfo[][]> = createMemo<CellFrameInfo[][]>((id) => {
+	/** gives the left position of every column in a left-aligned grid-cell layout.
+	 * the length of the returned array is `this.cols + 1` (number of columns in grid + 1).
+	 * the first element is always `0`, because the first column always starts at `left = 0`.
+	 * the last element highlights the total width of the entire grid (sum of all column max-content-widths + column gaps).
+	*/
+	private get_left_positions = createMemo<number[]>((id) => {
+		const
+			colGap = this.colGap,
+			colGap_len = colGap.length,
+			colWidths = this.getColWidths(id),
+			column_plus_gap_widths = colWidths.map((col_width, c) => (col_width + colGap[c % colGap_len]))
+		return cumulativeSum(column_plus_gap_widths)
+	})
+
+	/** gives the top position of every row in a top-aligned grid-cell layout.
+	 * the length of the returned array is `this.rows + 1` (number of rows in grid + 1).
+	 * the first element is always `0`, because the first row always starts at `top = 0`.
+	 * the last element highlights the total height of the entire grid (sum of all row max-content-heights + row gaps).
+	*/
+	private get_top_positions = createMemo<number[]>((id) => {
+		const
+			rowGap = this.rowGap,
+			rowGap_len = rowGap.length,
+			rowHeights = this.getRowHeights(id),
+			row_plus_gap_heights = rowHeights.map((row_height, r) => (row_height + rowGap[r % rowGap_len]))
+		return cumulativeSum(row_plus_gap_heights)
+	})
+
+	/** computes the {@link CellFrameInfo | frameinfo} of each cell within the grid, assuming a top-left grid alignment direction.
+	 * meaning that the frame information computed here assumes that the first-row-first-column cell is placed at the top-left.
+	*/
+	private get_topleft_aligned_cell_frames = createMemo<CellFrameInfo[][]>((id) => {
 		console.log("recomputing cellFrames")
 		const
 			{
-				rows, cols, cells, originAlign, colGap, rowGap,
+				rows, cols, cells, getColWidths, getRowHeights,
 				colAlign: colAlignGlobal, rowAlign: rowAlignGlobal,
-				getColWidths, getRowHeights,
 			} = this,
-			colGap_len = colGap.length,
-			rowGap_len = rowGap.length,
 			colAlignGlobal_len = colAlignGlobal.length,
 			rowAlignGlobal_len = rowAlignGlobal.length,
 			colWidths = getColWidths(id),
 			rowHeights = getRowHeights(id),
-			left_vals = zeroCumulativeSum(colWidths.map((col_width, c) => col_width + colGap[c % colGap_len])),
-			top_vals = zeroCumulativeSum(rowHeights.map((row_height, r) => row_height + rowGap[r % rowGap_len])),
+			left_vals = this.get_left_positions(id),
+			top_vals = this.get_top_positions(id),
 			cell_frames: CellFrameInfo[][] = newArray2D<CellFrameInfo>(rows, cols)
 		for (let r = 0; r < rows; r++) {
 			for (let c = 0; c < cols; c++) {
@@ -236,6 +266,34 @@ export class Grid implements NonNullable<GridInit> {
 				}
 			}
 		}
+		return cell_frames
+	})
+
+	/** get the total content-width of this grid.
+	 * it is simply the summation of all the {@link getColWidths | column-widths}, while also incorporating the in-between column-gap lengths.
+	*/
+	width: Accessor<number> = createMemo((id) => {
+		// the width of the entire grid can be simply determined by looking at one of the right-most-cell (last column) frame's right boundary
+		return this.get_left_positions(id).at(-1)!
+	})
+
+	/** get the total content-height of this grid.
+	 * it is simply the summation of all the {@link getRowHeights | row-heights}, while also incorporating the in-between row-gap lengths.
+	*/
+	height: Accessor<number> = createMemo((id) => {
+		// the height of the entire grid can be simply determined by looking at one of the bottom-most-cell (last row) frame's bottom boundary
+		return this.get_top_positions(id).at(-1)!
+	})
+
+	// TODO: the entire logic below can be incorporated into `get_topleft_aligned_cell_frames`, if we simply reverse the `get_left_positions()` and `get_top_positions()` when am alternate alignment is used.
+	// but remember, the code may resemble a spaghetti if you do that.
+	/** computes the {@link CellFrameInfo | frameinfo} of each cell within the grid. */
+	getCellFrames: Accessor<CellFrameInfo[][]> = createMemo<CellFrameInfo[][]>((id) => {
+		const
+			cell_frames = this.get_topleft_aligned_cell_frames(id),
+			grid_total_width = this.width(id),
+			grid_total_height = this.height(id),
+			{ rows, cols, originAlign } = this
 		// by this point, all `cell_frames`'s positions are based on the `"top-left"` origin alignment.
 		// if the origin is deemed to be placed on a different corner, then we'll simply apply the following transformations:
 		// - if (origin is on right-corner): (new_cell_frames[r][c].right = grid_total_width - cell_frames[r][c].left) && (new_cell_frames[r][c].left = grid_total_width - cell_frames[r][c].right)
@@ -244,9 +302,6 @@ export class Grid implements NonNullable<GridInit> {
 			reverse_horizontal = originAlign.includes("right"),
 			reverse_vertical = originAlign.includes("bottom")
 		if (reverse_horizontal || reverse_vertical) {
-			const
-				grid_total_width = (left_vals.at(-1) ?? 0) + (colWidths.at(-1) ?? 0),
-				grid_total_height = (top_vals.at(-1) ?? 0) + (rowHeights.at(-1) ?? 0)
 			for (let r = 0; r < rows; r++) {
 				for (let c = 0; c < cols; c++) {
 					const
@@ -289,7 +344,8 @@ export class Grid implements NonNullable<GridInit> {
 			rowAlign: parseAlignments(rowAlign),
 			isDirty, setDirty, cells,
 		})
-		this.getCellFrames() // update the cell frames matrix
+		// update the cell frames matrix and run the reactive-signal once so that it captures all of its signal-dependencies
+		this.getCellFrames()
 	}
 
 	getCellFrame(row: number, col: number): CellFrameInfo {
@@ -440,8 +496,33 @@ export class Grid implements NonNullable<GridInit> {
 		return grid
 	}
 
-	// TODO: implement this. see its {@link FrameSplit.hit} analog
-	hit(x: number, y: number): [row: number, col: number] | undefined { return }
+	/** do a hit test on the grid, relative to its top-left coordinates.
+	 * the returned value is `[row_number, column_number]` if a cell is successfully hit, otherwise an `undefined` is returned.
+	 * the hit does **not** check if the sprite within a {@link CellFrameInfo | cell frame} is being hit.
+	 * it will return a row and column values if a the gap in-between cell sprites is hit.
+	 * you will have to check whether the sprite's rect is being hit or not by yourself.
+	*/
+	hit(x: number, y: number): [row: number, col: number] | undefined {
+		const
+			originAlign = this.originAlign,
+			reverse_horizontal = originAlign.includes("right"),
+			reverse_vertical = originAlign.includes("bottom"),
+			left_vals = this.get_left_positions(),
+			top_vals = this.get_top_positions(),
+			grid_total_width = left_vals.at(-1)!,
+			grid_total_height = top_vals.at(-1)!
+		// convert the coordinates of `(x, y)`, so that they are aligned relative to the grid's origin corner (which is top-left by default)
+		x = reverse_horizontal ? (grid_total_width - x) : (x)
+		y = reverse_vertical ? (grid_total_height - y) : (y)
+		// first do an early termination if either `x` or `y` are out of bounds of the grid's rect
+		if (x < 0 || x > grid_total_width || y < 0 || y > grid_total_height) { return undefined }
+		const
+			// scan the index in `left_vals` where `x` is greater that the value at the index, but less that value at the next index. this index will then indicate the `column` which has been hit.
+			col = x === 0 ? 0 : left_vals.findIndex((left_bound) => (x <= left_bound)) - 1,
+			// scan the index in `top_vals` where `y` is greater that the value at the index, but less that value at the next index. this index will then indicate the `row` which has been hit.
+			row = y === 0 ? 0 : top_vals.findIndex((top_bound) => (y <= top_bound)) - 1
+		return [row, col]
+	}
 
 	// TODO: implement this debug-only method, with an implementation similar to {@link FrameSplit.toPreview}
 	toPreview(ctx: CanvasRenderingContext2D, color?: string) { }

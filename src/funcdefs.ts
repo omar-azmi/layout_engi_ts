@@ -1,4 +1,5 @@
 import { cumulativeSum, math_abs, math_cos, math_sin, number_isFinite } from "./deps.ts"
+import { SizedRect } from "./typedefs.ts"
 import { AlignOption, AnyLength, LengthUnit, LengthUnitLiteral, UnitNumber } from "./typedefs.ts"
 
 
@@ -40,7 +41,7 @@ export const zeroCumulativeSum = (arr: number[]): number[] => {
 }
 
 /** get the bounding box width and height of a rectangle that has been rotated at its center */
-export const boundboxOfRotatedRect = (width: number, height: number, rotation?: number): { width: number, height: number } => {
+export const boundboxOfRotatedRect = (width: number, height: number, rotation?: number): SizedRect => {
 	if (!rotation) { return { width, height } }
 	const
 		abs_cos_rot = math_abs(math_cos(rotation)),
