@@ -1,6 +1,6 @@
 import { EqualityCheck, EqualityFn, THROTTLE_REJECT, default_equality, dom_clearTimeout, dom_setTimeout, falsey_equality, math_random, newArray2D, noop, promiseTimeout, shuffleArray, throttle } from "../../src/deps.ts"
 import { Grid } from "../../src/grid.ts"
-import { createMemoSignal, createMemo, signalCtx } from "../../src/signal.ts"
+import { createMemoSignal, signalCtx } from "../../src/signal.ts"
 
 const app_config = {
 	loading: 3000,
@@ -27,9 +27,8 @@ const throttleAndTrailingEquals = <T>(trailing_time_ms: number, delta_time_ms: n
 }
 
 
-export const
-	rows = 8,
-	cols = 10,
+const
+	rows = 8, cols = 10,
 	grid = new Grid({ rows: rows, cols: cols, originAlign: "right", colAlign: ["end"], rowAlign: ["center"], colGap: [30], rowGap: [30] }),
 	scale = [0.1, 0.1, 0.25, 1.5 / 4, 0.25, 1.5 / 4, 1.75 / 4, 1.25 / 4]
 
@@ -65,7 +64,6 @@ const plotImage = (row: number, col: number) => {
 	grid.setCell(row, col, { width: width * scale[row], height: height * scale[row] })
 }
 
-// globalThis.addEventListener("DOMContentLoaded", () => {
 const
 	canvas = document.createElement("canvas"),
 	ctx = canvas.getContext("2d")!
@@ -75,7 +73,7 @@ canvas.height = 800
 const [id_throttledGetCellFrames, throttledGetCellFrames] = createMemoSignal((id) => {
 	return grid.getCellFrames(id)
 }, {
-	equals: throttleAndTrailingEquals(app_config.trail, app_config.throttle, false, () => signalCtx.runId(id_redraw))
+	equals: throttleAndTrailingEquals(app_config.trail, app_config.throttle, false, () => signalCtx.runId(id_throttledRedraw))
 })
 const updateThrottleGetCellFrames_equals = (trailing_time_ms: number, delta_time_ms: number) => {
 	signalCtx.dynamic.setEquals(
@@ -84,17 +82,33 @@ const updateThrottleGetCellFrames_equals = (trailing_time_ms: number, delta_time
 			trailing_time_ms,
 			delta_time_ms,
 			false,
-			() => signalCtx.runId(id_redraw),
+			() => signalCtx.runId(id_throttledRedraw),
 		)
 	)
 }
 
-const [id_redraw, redraw] = createMemoSignal((id) => {
+const redraw = () => {
 	console.log("redraw")
 	ctx.clearRect(0, 0, 2000, 800)
+	const cell_frames = grid.getCellFrames()
+	for (let col = 0; col < grid.cols; col++) {
+		for (let row = 0; row < grid.rows; row++) {
+			const
+				{ left, top, x, y, width, height } = cell_frames[row][col],
+				img = image_matrix[row][col]
+			if (img) {
+				ctx.drawImage(img, left + x, top + y, width, height)
+			}
+		}
+	}
+}
+
+const [id_throttledRedraw, throttledRedraw] = createMemoSignal((id) => {
+	console.log("throttled-redraw")
+	ctx.clearRect(0, 0, 2000, 800)
 	const cell_frames = throttledGetCellFrames(id)
-	for (let col = 0; col < cols; col++) {
-		for (let row = 0; row < rows; row++) {
+	for (let col = 0; col < grid.cols; col++) {
+		for (let row = 0; row < grid.rows; row++) {
 			const
 				{ left, top, x, y, width, height } = cell_frames[row][col],
 				img = image_matrix[row][col]
@@ -104,36 +118,6 @@ const [id_redraw, redraw] = createMemoSignal((id) => {
 		}
 	}
 })
-
-
-
-document.body.appendChild(document.createElement("div")).textContent = "simulate loading time, redraw throttle time, redraw trailing time"
-document.body.appendChild(document.createElement("input")).oninput = ((event) => {
-	const elem = event.target as HTMLInputElement
-	const loading_time = parseFloat(elem.value)
-	app_config.loading = isFinite(loading_time) ? loading_time : 0
-})
-document.body.appendChild(document.createElement("input")).oninput = ((event) => {
-	const elem = event.target as HTMLInputElement
-	const throttle_time = parseFloat(elem.value)
-	app_config.throttle = isFinite(throttle_time) ? throttle_time : 0
-})
-document.body.appendChild(document.createElement("input")).oninput = ((event) => {
-	const elem = event.target as HTMLInputElement
-	const trailing_time = parseFloat(elem.value)
-	app_config.trail = isFinite(trailing_time) ? trailing_time : 0
-})
-const reload_button = document.body.appendChild(document.createElement("button"))
-reload_button.onclick = ((event) => {
-	updateThrottleGetCellFrames_equals(app_config.trail, app_config.throttle)
-	loadAllImages(app_config.loading)
-	for (let row = 0; row < grid.rows; row++) {
-		for (let col = 0; col < grid.cols; col++) {
-			grid.setCell(row, col, {})
-		}
-	}
-})
-reload_button.textContent = "reload all images"
 
 canvas.onmousedown = (event: MouseEvent) => {
 	const { offsetX, offsetY, currentTarget: elem } = event
@@ -156,6 +140,13 @@ canvas.onmousedown = (event: MouseEvent) => {
 document.body.appendChild(canvas)
 
 loadAllImages(app_config.loading).then(() => {
-	redraw()
+	throttledRedraw()
 })
-// })
+
+export {
+	grid,
+	app_config,
+	loadAllImages,
+	updateThrottleGetCellFrames_equals,
+	redraw,
+}
