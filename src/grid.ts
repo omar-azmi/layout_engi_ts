@@ -143,7 +143,6 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	/** get the width of each column in the grid. the widths do not incorporate the length of any column-gaps in-between (invariant to it). */
 	getColWidths: Accessor<number[]> = createMemo<number[]>((id) => {
 		this.isDirty(id)
-		console.log("recomputing colWidths")
 		const
 			{ cols, colWidth, colMinWidth, colMaxWidth } = this,
 			colWidth_len = colWidth.length,
@@ -165,12 +164,11 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 			}))
 		}
 		return max_widths
-	})
+	}, { equals: false })
 
 	/** get the height of each row in the grid. the heights do not incorporate the length of any row-gaps in-between (invariant to it). */
 	getRowHeights: Accessor<number[]> = createMemo<number[]>((id) => {
 		this.isDirty(id)
-		console.log("recomputing rowHeights")
 		const
 			{ rows, rowHeight, rowMinHeight, rowMaxHeight } = this,
 			rowHeight_len = rowHeight.length,
@@ -192,7 +190,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 			}))
 		}
 		return max_heights
-	})
+	}, { equals: false })
 
 	/** gives the left position of every column in a left-aligned grid-cell layout.
 	 * the length of the returned array is `this.cols + 1` (number of columns in grid + 1).
@@ -201,12 +199,12 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	*/
 	private get_left_positions = createMemo<number[]>((id) => {
 		const
+			colWidths = this.getColWidths(id),
 			colGap = this.colGap,
 			colGap_len = colGap.length,
-			colWidths = this.getColWidths(id),
 			column_plus_gap_widths = colWidths.map((col_width, c) => (col_width + colGap[c % colGap_len]))
 		return cumulativeSum(column_plus_gap_widths)
-	})
+	}, { equals: false })
 
 	/** gives the top position of every row in a top-aligned grid-cell layout.
 	 * the length of the returned array is `this.rows + 1` (number of rows in grid + 1).
@@ -215,29 +213,25 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	*/
 	private get_top_positions = createMemo<number[]>((id) => {
 		const
+			rowHeights = this.getRowHeights(id),
 			rowGap = this.rowGap,
 			rowGap_len = rowGap.length,
-			rowHeights = this.getRowHeights(id),
 			row_plus_gap_heights = rowHeights.map((row_height, r) => (row_height + rowGap[r % rowGap_len]))
 		return cumulativeSum(row_plus_gap_heights)
-	})
+	}, { equals: false })
 
 	/** computes the {@link CellFrameInfo | frameinfo} of each cell within the grid, assuming a top-left grid alignment direction.
 	 * meaning that the frame information computed here assumes that the first-row-first-column cell is placed at the top-left.
 	*/
 	private get_topleft_aligned_cell_frames = createMemo<CellFrameInfo[][]>((id) => {
-		console.log("recomputing cellFrames")
 		const
-			{
-				rows, cols, cells, getColWidths, getRowHeights,
-				colAlign: colAlignGlobal, rowAlign: rowAlignGlobal,
-			} = this,
-			colAlignGlobal_len = colAlignGlobal.length,
-			rowAlignGlobal_len = rowAlignGlobal.length,
-			colWidths = getColWidths(id),
-			rowHeights = getRowHeights(id),
+			colWidths = this.getColWidths(id),
+			rowHeights = this.getRowHeights(id),
 			left_vals = this.get_left_positions(id),
 			top_vals = this.get_top_positions(id),
+			{ rows, cols, cells, colAlign: colAlignGlobal, rowAlign: rowAlignGlobal } = this,
+			colAlignGlobal_len = colAlignGlobal.length,
+			rowAlignGlobal_len = rowAlignGlobal.length,
 			cell_frames: CellFrameInfo[][] = newArray2D<CellFrameInfo>(rows, cols)
 		for (let r = 0; r < rows; r++) {
 			for (let c = 0; c < cols; c++) {
@@ -267,7 +261,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 			}
 		}
 		return cell_frames
-	})
+	}, { equals: false })
 
 	/** get the total content-width of this grid.
 	 * it is simply the summation of all the {@link getColWidths | column-widths}, while also incorporating the in-between column-gap lengths.
@@ -275,7 +269,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	width: Accessor<number> = createMemo((id) => {
 		// the width of the entire grid can be simply determined by looking at one of the right-most-cell (last column) frame's right boundary
 		return this.get_left_positions(id).at(-1)!
-	})
+	}, { equals: false })
 
 	/** get the total content-height of this grid.
 	 * it is simply the summation of all the {@link getRowHeights | row-heights}, while also incorporating the in-between row-gap lengths.
@@ -283,7 +277,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	height: Accessor<number> = createMemo((id) => {
 		// the height of the entire grid can be simply determined by looking at one of the bottom-most-cell (last row) frame's bottom boundary
 		return this.get_top_positions(id).at(-1)!
-	})
+	}, { equals: false })
 
 	// TODO: the entire logic below can be incorporated into `get_topleft_aligned_cell_frames`, if we simply reverse the `get_left_positions()` and `get_top_positions()` when am alternate alignment is used.
 	// but remember, the code may resemble a spaghetti if you do that.
@@ -318,8 +312,9 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 				}
 			}
 		}
+		console.log("recomputing getCellFrames")
 		return cell_frames
-	})
+	}, { equals: false })
 
 	constructor(config: GridInit) {
 		const
@@ -331,10 +326,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 				colAlign = ["start"], rowAlign = ["start"],
 				colGap = [0], rowGap = [0]
 			} = config,
-			[isDirty, _setDirty] = createState(undefined, { equals: false }),
-			setDirty: typeof _setDirty = (new_value) => {
-				return this.paused ? false : _setDirty(new_value)
-			},
+			[isDirty, setDirty] = createState(undefined, { equals: () => { return this.paused } }),
 			cells = newArray2D<GridCell>(rows, cols)
 		for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { cells[r][c] = {} } }
 		Object.assign(this, {

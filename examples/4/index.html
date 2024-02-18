@@ -4,11 +4,11 @@
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>example 4: grid of images</title>
+	<title>example 4: grid of images, with configuration</title>
 	<!-- <script src="./index.ts" type="module"></script> -->
 	<script>
 		globalThis.addEventListener("DOMContentLoaded", async () => {
-			const { grid, app_config, loadAllImages, updateThrottleGetCellFrames_equals, redraw } = await import("./index.ts")
+			const { grid, app_config, loadAllImages, updateThrottleGetCellFrames_equals, redraw, signalCtx } = await import("./index.ts")
 			const parseEventValue_CB = (default_value, callback, event) => {
 				const
 					elem = event.currentTarget,
@@ -56,7 +56,7 @@
 			$("#colmaxwidth-input").oninput = parseEventJsonArray_CB.bind(undefined, [ Number.POSITIVE_INFINITY ], (val) => { grid.colMaxWidth = val; grid.setDirty() })
 			$("#rowmaxheight-input").oninput = parseEventJsonArray_CB.bind(undefined, [ Number.POSITIVE_INFINITY ], (val) => { grid.rowMaxHeight = val; grid.setDirty() })
 
-			window.grid = grid
+			Object.assign(globalThis, { grid, app_config, signalCtx })
 		})
 	</script>
 	<style>

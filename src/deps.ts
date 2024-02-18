@@ -1,16 +1,16 @@
-import type { Array2DRowMajor } from "https://deno.land/x/kitchensink_ts@v0.7.2/array2d.ts"
-import { array_isEmpty } from "https://deno.land/x/kitchensink_ts@v0.7.2/builtin_aliases_deps.ts"
-import { max } from "https://deno.land/x/kitchensink_ts@v0.7.2/numericmethods.ts"
-export { Array2DShape, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor, transposeArray2D } from "https://deno.land/x/kitchensink_ts@v0.7.2/array2d.ts"
-export type { Array2D, Array2DColMajor, Array2DRowMajor } from "https://deno.land/x/kitchensink_ts@v0.7.2/array2d.ts"
-export { dom_clearTimeout, dom_setTimeout, noop, number_POSITIVE_INFINITY } from "https://deno.land/x/kitchensink_ts@v0.7.2/builtin_aliases_deps.ts"
-export { THROTTLE_REJECT, TIMEOUT, debounce, promiseTimeout, throttle, throttleAndTrail } from "https://deno.land/x/kitchensink_ts@v0.7.2/lambda.ts"
-export { cumulativeSum } from "https://deno.land/x/kitchensink_ts@v0.7.2/numericarray.ts"
-export { clamp, max, min, sum } from "https://deno.land/x/kitchensink_ts@v0.7.2/numericmethods.ts"
-export { constructFrom, constructorOf } from "https://deno.land/x/kitchensink_ts@v0.7.2/struct.ts"
-export type { ConstructorOf, MethodsOf } from "https://deno.land/x/kitchensink_ts@v0.7.2/typedefs.ts"
-export { Context, MemoSignal_Factory, StateSignal_Factory, default_equality, falsey_equality, throttlingEquals } from "https://deno.land/x/tsignal_ts@v0.1.2-c/mod.ts"
-export type { Accessor, EqualityCheck, EqualityFn, Setter } from "https://deno.land/x/tsignal_ts@v0.1.2-c/mod.ts"
+import type { Array2DRowMajor } from "https://deno.land/x/kitchensink_ts@v0.7.3/array2d.ts"
+import { array_isEmpty } from "https://deno.land/x/kitchensink_ts@v0.7.3/builtin_aliases_deps.ts"
+import { max } from "https://deno.land/x/kitchensink_ts@v0.7.3/numericmethods.ts"
+export { Array2DShape, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor, transposeArray2D } from "https://deno.land/x/kitchensink_ts@v0.7.3/array2d.ts"
+export type { Array2D, Array2DColMajor, Array2DRowMajor } from "https://deno.land/x/kitchensink_ts@v0.7.3/array2d.ts"
+export { dom_clearTimeout, dom_setTimeout, noop, number_POSITIVE_INFINITY } from "https://deno.land/x/kitchensink_ts@v0.7.3/builtin_aliases_deps.ts"
+export { THROTTLE_REJECT, TIMEOUT, debounce, promiseTimeout, throttle, throttleAndTrail } from "https://deno.land/x/kitchensink_ts@v0.7.3/lambda.ts"
+export { cumulativeSum } from "https://deno.land/x/kitchensink_ts@v0.7.3/numericarray.ts"
+export { clamp, max, min, sum } from "https://deno.land/x/kitchensink_ts@v0.7.3/numericmethods.ts"
+export { constructFrom, constructorOf } from "https://deno.land/x/kitchensink_ts@v0.7.3/struct.ts"
+export type { ConstructorOf, MethodsOf } from "https://deno.land/x/kitchensink_ts@v0.7.3/typedefs.ts"
+export { Context, MemoSignal_Factory, StateSignal_Factory, default_equality, falsey_equality, throttlingEquals } from "https://deno.land/x/tsignal_ts@v0.2.1/mod.ts"
+export type { Accessor, EqualityCheck, EqualityFn, Setter } from "https://deno.land/x/tsignal_ts@v0.2.1/mod.ts"
 
 export const number_isFinite = Number.isFinite
 export const object_entries = Object.entries
@@ -38,8 +38,11 @@ export const shuffleArray = <T>(arr: Array<T>): Array<T> => {
 	return arr
 }
 
-export const newArray2D = <T>(rows: number, cols: number, fill?: T): Array2DRowMajor<T> => {
-	return Array(rows).fill(undefined).map(() => Array(cols).fill(fill))
+export const newArray2D = <T>(rows: number, cols: number, fill_fn?: T | ((value?: undefined, column_index?: number, column_array?: (T | undefined)[]) => T)): Array2DRowMajor<T> => {
+	const col_map_fn = typeof fill_fn === "function" ?
+		() => Array(cols).fill(undefined).map(fill_fn as () => T) :
+		() => Array(cols).fill(fill_fn)
+	return Array(rows).fill(undefined).map(col_map_fn)
 }
 
 // TODO: add to kitchensink_ts

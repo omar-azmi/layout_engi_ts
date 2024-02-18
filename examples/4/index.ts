@@ -6,6 +6,7 @@ const app_config = {
 	loading: 3000,
 	throttle: 200,
 	trail: 500,
+	image_dir: "../assets/grid_images/",
 }
 
 const throttleAndTrailingEquals = <T>(trailing_time_ms: number, delta_time_ms: number, base_equals?: EqualityCheck<T>, trailing_callback: () => void = noop): EqualityFn<T> => {
@@ -38,7 +39,7 @@ const loadImage = async (row: number, col: number): Promise<void> => {
 	const img = new Image()
 	image_matrix[row][col] = img
 	img.onload = () => { plotImage(row, col) }
-	img.src = `./grid_images/${row},${col}.jpg`
+	img.src = app_config.image_dir + `${row},${col}.jpg`
 }
 
 const loadAllImages = async (simulate_loading_time = 0) => {
@@ -88,9 +89,9 @@ const updateThrottleGetCellFrames_equals = (trailing_time_ms: number, delta_time
 }
 
 const redraw = () => {
-	console.log("redraw")
-	ctx.clearRect(0, 0, 2000, 800)
 	const cell_frames = grid.getCellFrames()
+	ctx.reset()
+	console.log("redraw")
 	for (let col = 0; col < grid.cols; col++) {
 		for (let row = 0; row < grid.rows; row++) {
 			const
@@ -104,9 +105,9 @@ const redraw = () => {
 }
 
 const [id_throttledRedraw, throttledRedraw] = createMemoSignal((id) => {
-	console.log("throttled-redraw")
-	ctx.clearRect(0, 0, 2000, 800)
 	const cell_frames = throttledGetCellFrames(id)
+	ctx.reset()
+	console.log("throttled-redraw")
 	for (let col = 0; col < grid.cols; col++) {
 		for (let row = 0; row < grid.rows; row++) {
 			const
@@ -117,7 +118,7 @@ const [id_throttledRedraw, throttledRedraw] = createMemoSignal((id) => {
 			}
 		}
 	}
-})
+}, { equals: false })
 
 canvas.onmousedown = (event: MouseEvent) => {
 	const { offsetX, offsetY, currentTarget: elem } = event
@@ -144,9 +145,6 @@ loadAllImages(app_config.loading).then(() => {
 })
 
 export {
-	grid,
-	app_config,
-	loadAllImages,
-	updateThrottleGetCellFrames_equals,
-	redraw,
+	app_config, grid, loadAllImages, redraw,
+	signalCtx, updateThrottleGetCellFrames_equals
 }
