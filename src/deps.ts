@@ -21,7 +21,13 @@ export const {
 	random: math_random,
 } = Math
 
-// TODO: add build scripts and workflow files and workspace files from kitchensink_ts
+export const enum DEBUG {
+	LOG = 0,
+	ERROR = 0,
+	ASSERT = 0,
+}
+
+// DONE: add build scripts and workflow files and workspace files from kitchensink_ts
 // TODO: add a readme and a license file
 
 // TODO: add to kitchensink_ts

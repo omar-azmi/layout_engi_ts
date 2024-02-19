@@ -8,7 +8,7 @@
  * @module
 */
 
-import { Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, cumulativeSum, math_max, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
+import { Array2DColMajor, Array2DRowMajor, Array2DShape, DEBUG, clamp, cumulativeSum, math_max, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
 import { alignmentToNumber, boundboxOfRotatedRect, parseAlignments } from "./funcdefs.ts"
 import { Accessor, SignalingClass } from "./signal.ts"
 import { AlignOption, Hit, OriginAlignOption, Sprite } from "./typedefs.ts"
@@ -302,7 +302,7 @@ export class Grid extends SignalingClass implements NonNullable<GridInit>, Hit<[
 				}
 			}
 		}
-		console.log("recomputing getCellFrames")
+		if (DEBUG.LOG) { console.log("recomputing getCellFrames") }
 		return cell_frames
 	}, { equals: false })
 
@@ -396,11 +396,11 @@ export class Grid extends SignalingClass implements NonNullable<GridInit>, Hit<[
 			[rows_added, cols_added] = Array2DShape(rows_of_cells),
 			total_rows = rows + rows_added
 		if (cols_added !== cols) {
-			console.error(`number of columns mismatched. cannot push new rows with ${cols_added} columns onto existing grid with ${cols} columns`)
+			if (DEBUG.ERROR) { console.error(`number of columns mismatched. cannot push new rows with ${cols_added} columns onto existing grid with ${cols} columns`) }
 			return rows
 		}
 		this.spliceRows(rows, 0, ...rows_of_cells)
-		console.assert(this.rows === total_rows)
+		if (DEBUG.ASSERT) { console.assert(this.rows === total_rows) }
 		return total_rows
 	}
 
@@ -411,11 +411,11 @@ export class Grid extends SignalingClass implements NonNullable<GridInit>, Hit<[
 			[cols_added, rows_added] = Array2DShape(cols_of_cells),
 			total_cols = cols + cols_added
 		if (rows_added !== rows) {
-			console.error(`number of rows mismatched. cannot push new cols with ${rows_added} rows onto existing grid with ${rows} rows`)
+			if (DEBUG.ERROR) { console.error(`number of rows mismatched. cannot push new cols with ${rows_added} rows onto existing grid with ${rows} rows`) }
 			return cols
 		}
 		this.spliceCols(cols, 0, ...cols_of_cells)
-		console.assert(this.cols === total_cols)
+		if (DEBUG.ASSERT) { console.assert(this.cols === total_cols) }
 		return total_cols
 	}
 
@@ -426,11 +426,11 @@ export class Grid extends SignalingClass implements NonNullable<GridInit>, Hit<[
 			[rows_added, cols_added] = Array2DShape(rows_of_cells),
 			total_rows = rows + rows_added
 		if (cols_added !== cols) {
-			console.error(`number of columns mismatched. cannot unshift new rows with ${cols_added} columns onto existing grid with ${cols} columns`)
+			if (DEBUG.ERROR) { console.error(`number of columns mismatched. cannot unshift new rows with ${cols_added} columns onto existing grid with ${cols} columns`) }
 			return rows
 		}
 		this.spliceRows(0, 0, ...rows_of_cells)
-		console.assert(this.rows === total_rows)
+		if (DEBUG.ASSERT) { console.assert(this.rows === total_rows) }
 		return total_rows
 	}
 
@@ -441,11 +441,11 @@ export class Grid extends SignalingClass implements NonNullable<GridInit>, Hit<[
 			[cols_added, rows_added] = Array2DShape(cols_of_cells),
 			total_cols = cols + cols_added
 		if (rows_added !== rows) {
-			console.error(`number of rows mismatched. cannot unshift new cols with ${rows_added} rows onto existing grid with ${rows} rows`)
+			if (DEBUG.ERROR) { console.error(`number of rows mismatched. cannot unshift new cols with ${rows_added} rows onto existing grid with ${rows} rows`) }
 			return cols
 		}
 		this.spliceCols(0, 0, ...cols_of_cells)
-		console.assert(this.cols === total_cols)
+		if (DEBUG.ASSERT) { console.assert(this.cols === total_cols) }
 		return total_cols
 	}
 
