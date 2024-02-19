@@ -1,3 +1,7 @@
+/** 
+ * @module
+*/
+
 export * from "./typedefs.ts"
 export * from "./funcdefs.ts"
 export * from "./signal.ts"

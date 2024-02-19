@@ -3,18 +3,16 @@ import { array_isEmpty } from "https://deno.land/x/kitchensink_ts@v0.7.3/builtin
 import { max } from "https://deno.land/x/kitchensink_ts@v0.7.3/numericmethods.ts"
 export { Array2DShape, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor, transposeArray2D } from "https://deno.land/x/kitchensink_ts@v0.7.3/array2d.ts"
 export type { Array2D, Array2DColMajor, Array2DRowMajor } from "https://deno.land/x/kitchensink_ts@v0.7.3/array2d.ts"
-export { dom_clearTimeout, dom_setTimeout, noop, number_POSITIVE_INFINITY } from "https://deno.land/x/kitchensink_ts@v0.7.3/builtin_aliases_deps.ts"
+export { dom_clearInterval, dom_clearTimeout, dom_setInterval, dom_setTimeout, noop, number_POSITIVE_INFINITY, object_entries, object_fromEntries } from "https://deno.land/x/kitchensink_ts@v0.7.3/builtin_aliases_deps.ts"
 export { THROTTLE_REJECT, TIMEOUT, debounce, promiseTimeout, throttle, throttleAndTrail } from "https://deno.land/x/kitchensink_ts@v0.7.3/lambda.ts"
 export { cumulativeSum } from "https://deno.land/x/kitchensink_ts@v0.7.3/numericarray.ts"
 export { clamp, max, min, sum } from "https://deno.land/x/kitchensink_ts@v0.7.3/numericmethods.ts"
 export { constructFrom, constructorOf } from "https://deno.land/x/kitchensink_ts@v0.7.3/struct.ts"
 export type { ConstructorOf, MethodsOf } from "https://deno.land/x/kitchensink_ts@v0.7.3/typedefs.ts"
-export { Context, MemoSignal_Factory, StateSignal_Factory, default_equality, falsey_equality, throttlingEquals } from "https://deno.land/x/tsignal_ts@v0.2.1/mod.ts"
-export type { Accessor, EqualityCheck, EqualityFn, Setter } from "https://deno.land/x/tsignal_ts@v0.2.1/mod.ts"
+export { Context, EffectSignal_Factory, LazySignal_Factory, MemoSignal_Factory, StateSignal_Factory, default_equality, falsey_equality, throttlingEquals } from "https://deno.land/x/tsignal_ts@v0.2.2/mod.ts"
+export type { Accessor, EqualityCheck, EqualityFn, Setter } from "https://deno.land/x/tsignal_ts@v0.2.2/mod.ts"
 
 export const number_isFinite = Number.isFinite
-export const object_entries = Object.entries
-export const object_fromEntries = Object.fromEntries
 export const {
 	abs: math_abs,
 	cos: math_cos,
@@ -22,6 +20,9 @@ export const {
 	sin: math_sin,
 	random: math_random,
 } = Math
+
+// TODO: add build scripts and workflow files and workspace files from kitchensink_ts
+// TODO: add a readme and a license file
 
 // TODO: add to kitchensink_ts
 /** shuffle an array via mutation. the ordering of elements will be randomized by the end. */

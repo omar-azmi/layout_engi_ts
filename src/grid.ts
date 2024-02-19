@@ -10,7 +10,7 @@
 
 import { Array2DColMajor, Array2DRowMajor, Array2DShape, clamp, cumulativeSum, math_max, newArray2D, number_POSITIVE_INFINITY, rotateArray2DMajor, rotateArray2DMinor, spliceArray2DMajor, spliceArray2DMinor } from "./deps.ts"
 import { alignmentToNumber, boundboxOfRotatedRect, parseAlignments } from "./funcdefs.ts"
-import { Accessor, Setter, createMemo, createState } from "./signal.ts"
+import { Accessor, SignalingClass } from "./signal.ts"
 import { AlignOption, Hit, OriginAlignOption, Sprite } from "./typedefs.ts"
 
 
@@ -114,7 +114,7 @@ export interface GridInit {
 
 
 /** the grid layout class provides a way for you to compute the locations of sprites had they been organized in a grid. */
-export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: number]> {
+export class Grid extends SignalingClass implements NonNullable<GridInit>, Hit<[row: number, col: number]> {
 	cols!: GridInit["cols"]
 	rows!: GridInit["rows"]
 	originAlign!: NonNullable<GridInit["originAlign"]>
@@ -128,20 +128,10 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	rowAlign!: NonNullable<GridInit["rowAlign"]>
 	colGap!: NonNullable<GridInit["colGap"]>
 	rowGap!: NonNullable<GridInit["rowGap"]>
-	isDirty!: Accessor<void>
-	setDirty!: Setter<void>
 	protected cells!: Array2DRowMajor<GridCell>
 
-	private paused = false
-
-	/** manually disable reactivity of {@link isDirty | `isDirty`} accessor, until unpasued by {@link resumeReactivity} */
-	pauseReactivity() { this.paused = true }
-
-	/** resume reactivity of {@link isDirty | `isDirty`} accessor, if it had previously been pasued by {@link pauseReactivity} */
-	resumeReactivity() { this.paused = false }
-
 	/** get the width of each column in the grid. the widths do not incorporate the length of any column-gaps in-between (invariant to it). */
-	getColWidths: Accessor<number[]> = createMemo<number[]>((id) => {
+	getColWidths: Accessor<number[]> = this.comp<number[]>((id) => {
 		this.isDirty(id)
 		const
 			{ cols, colWidth, colMinWidth, colMaxWidth } = this,
@@ -167,7 +157,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	}, { equals: false })
 
 	/** get the height of each row in the grid. the heights do not incorporate the length of any row-gaps in-between (invariant to it). */
-	getRowHeights: Accessor<number[]> = createMemo<number[]>((id) => {
+	getRowHeights: Accessor<number[]> = this.comp<number[]>((id) => {
 		this.isDirty(id)
 		const
 			{ rows, rowHeight, rowMinHeight, rowMaxHeight } = this,
@@ -197,7 +187,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	 * the first element is always `0`, because the first column always starts at `left = 0`.
 	 * the last element highlights the total width of the entire grid (sum of all column max-content-widths + column gaps).
 	*/
-	private get_left_positions = createMemo<number[]>((id) => {
+	private get_left_positions = this.comp<number[]>((id) => {
 		const
 			colWidths = this.getColWidths(id),
 			colGap = this.colGap,
@@ -211,7 +201,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	 * the first element is always `0`, because the first row always starts at `top = 0`.
 	 * the last element highlights the total height of the entire grid (sum of all row max-content-heights + row gaps).
 	*/
-	private get_top_positions = createMemo<number[]>((id) => {
+	private get_top_positions = this.comp<number[]>((id) => {
 		const
 			rowHeights = this.getRowHeights(id),
 			rowGap = this.rowGap,
@@ -223,7 +213,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	/** computes the {@link CellFrameInfo | frameinfo} of each cell within the grid, assuming a top-left grid alignment direction.
 	 * meaning that the frame information computed here assumes that the first-row-first-column cell is placed at the top-left.
 	*/
-	private get_topleft_aligned_cell_frames = createMemo<CellFrameInfo[][]>((id) => {
+	private get_topleft_aligned_cell_frames = this.comp<CellFrameInfo[][]>((id) => {
 		const
 			colWidths = this.getColWidths(id),
 			rowHeights = this.getRowHeights(id),
@@ -266,7 +256,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	/** get the total content-width of this grid.
 	 * it is simply the summation of all the {@link getColWidths | column-widths}, while also incorporating the in-between column-gap lengths.
 	*/
-	width: Accessor<number> = createMemo((id) => {
+	width: Accessor<number> = this.comp((id) => {
 		// the width of the entire grid can be simply determined by looking at one of the right-most-cell (last column) frame's right boundary
 		return this.get_left_positions(id).at(-1)!
 	}, { equals: false })
@@ -274,7 +264,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	/** get the total content-height of this grid.
 	 * it is simply the summation of all the {@link getRowHeights | row-heights}, while also incorporating the in-between row-gap lengths.
 	*/
-	height: Accessor<number> = createMemo((id) => {
+	height: Accessor<number> = this.comp((id) => {
 		// the height of the entire grid can be simply determined by looking at one of the bottom-most-cell (last row) frame's bottom boundary
 		return this.get_top_positions(id).at(-1)!
 	}, { equals: false })
@@ -282,7 +272,7 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 	// TODO: the entire logic below can be incorporated into `get_topleft_aligned_cell_frames`, if we simply reverse the `get_left_positions()` and `get_top_positions()` when am alternate alignment is used.
 	// but remember, the code may resemble a spaghetti if you do that.
 	/** computes the {@link CellFrameInfo | frameinfo} of each cell within the grid. */
-	getCellFrames: Accessor<CellFrameInfo[][]> = createMemo<CellFrameInfo[][]>((id) => {
+	getCellFrames: Accessor<CellFrameInfo[][]> = this.comp<CellFrameInfo[][]>((id) => {
 		const
 			cell_frames = this.get_topleft_aligned_cell_frames(id),
 			grid_total_width = this.width(id),
@@ -316,7 +306,8 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 		return cell_frames
 	}, { equals: false })
 
-	constructor(config: GridInit) {
+	constructor(config: GridInit, lazy = false) {
+		super(lazy)
 		const
 			{
 				rows, cols, originAlign = "",
@@ -326,15 +317,13 @@ export class Grid implements NonNullable<GridInit>, Hit<[row: number, col: numbe
 				colAlign = ["start"], rowAlign = ["start"],
 				colGap = [0], rowGap = [0]
 			} = config,
-			[isDirty, setDirty] = createState(undefined, { equals: () => { return this.paused } }),
 			cells = newArray2D<GridCell>(rows, cols)
 		for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { cells[r][c] = {} } }
 		Object.assign(this, {
 			rows, cols, originAlign, colWidth, rowHeight, colGap, rowGap,
-			colMinWidth, rowMinHeight, colMaxWidth, rowMaxHeight,
+			colMinWidth, rowMinHeight, colMaxWidth, rowMaxHeight, cells,
 			colAlign: parseAlignments(colAlign),
 			rowAlign: parseAlignments(rowAlign),
-			isDirty, setDirty, cells,
 		})
 		// update the cell frames matrix and run the reactive-signal once so that it captures all of its signal-dependencies
 		this.getCellFrames()
