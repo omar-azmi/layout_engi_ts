@@ -1,0 +1,52 @@
+{
+  "module": "./esm/mod.js",
+  "name": "layout_engi_ts",
+  "version": "0.1.1",
+  "description": "a crappy reactive layout engine",
+  "author": "Omar Azmi",
+  "license": "Anti-Competition License",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/omar-azmi/layout_engi_ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/omar-azmi/layout_engi_ts/issues"
+  },
+  "devDependencies": {
+    "@types/node": "^18.11.9",
+    "typescript": "^5.0.0",
+    "typedoc": "^0.24.8",
+    "esbuild": "^0.17.19"
+  },
+  "scripts": {
+    "build-dist": "npm run build-esm && npm run build-esm-minify && npm run build-iife && npm run build-iife-minify",
+    "build-esm": "npx esbuild \"./src/mod.ts\" --bundle --format=esm --outfile=\"./dist/layout_engi_ts.esm.js\"",
+    "build-esm-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=esm --outfile=\"./dist/layout_engi_ts.esm.min.js\"",
+    "build-iife": "npx esbuild \"./src/mod.ts\" --bundle --format=iife --outfile=\"./dist/layout_engi_ts.iife.js\"",
+    "build-iife-minify": "npx esbuild \"./src/mod.ts\" --bundle --minify --format=iife --outfile=\"./dist/layout_engi_ts.iife.min.js\""
+  },
+  "exports": {
+    ".": {
+      "import": "./esm/mod.js"
+    },
+    "./grid": {
+      "import": "./esm/grid.js"
+    },
+    "./framesplit": {
+      "import": "./esm/framesplit.js"
+    },
+    "./signal": {
+      "import": "./esm/signal.js"
+    },
+    "./funcdefs": {
+      "import": "./esm/funcdefs.js"
+    },
+    "./typedefs": {
+      "import": "./esm/typedefs.js"
+    }
+  },
+  "dependencies": {
+    "kitchensink_ts": "^v0.7.3",
+    "tsignal_ts": "^v0.2.2"
+  }
+}
