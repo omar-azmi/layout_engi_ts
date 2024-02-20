@@ -1,7 +1,18 @@
+/** this module provides you with the {@link FrameSplit | `FrameSplit`} class, which lets you create a
+ * reactive frame (box) that can be recursively split from any of its 4-sides.
+ * 
+ * @example
+ * ```ts
+ * // TODO
+ * ```
+ * 
+ * @module
+*/
+
 import { constructFrom, max, min, shuffledDeque } from "./deps.js"
 import { parseLengthUnit } from "./funcdefs.js"
 import { Accessor, Setter, createMemo, createStateIfPrimitive } from "./signal.js"
-import { AnyLength, AnyNumber, LengthUnit } from "./typedefs.js"
+import { AnyLength, AnyNumber, Hit, LengthUnit } from "./typedefs.js"
 
 
 interface DimensionXValue {
@@ -39,7 +50,7 @@ const ltrb_iter = ["left", "top", "right", "bottom"] as const
 const colors = ["aqua", "aquamarine", "antiquewhite", "blue", "brown", "blueviolet", "chartreuse", "crimson", "darkkhaki", "darkorange", "darksalmon", "fuchsia", "gold", "green", "orangered", "yellow", "yellowgreen"]
 export const pick_color_iter = shuffledDeque(colors)
 
-export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
+export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>, Hit<FrameSplit> {
 	declare left: Accessor<number>
 	declare top: Accessor<number>
 	declare right: Accessor<number>
@@ -227,7 +238,6 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 		return child_framesplit
 	}
 
-	// TODO: I think this method belongs either to a subclass, or a separate function that takes `this` as the first argument.
 	/** hit test to see if this frame, or any of its deep children, get hit by the `(x, y)` coordinates. <br>
 	 * the deepest child hit by the hit ray will be returned, and an `undefined` will be returned if nothing was hit.
 	*/

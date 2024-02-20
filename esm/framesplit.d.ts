@@ -1,5 +1,15 @@
+/** this module provides you with the {@link FrameSplit | `FrameSplit`} class, which lets you create a
+ * reactive frame (box) that can be recursively split from any of its 4-sides.
+ *
+ * @example
+ * ```ts
+ * // TODO
+ * ```
+ *
+ * @module
+*/
 import { Accessor, Setter } from "./signal.js";
-import { AnyLength, AnyNumber, LengthUnit } from "./typedefs.js";
+import { AnyLength, AnyNumber, Hit, LengthUnit } from "./typedefs.js";
 interface DimensionXValue {
     left?: number;
     right?: number;
@@ -29,7 +39,7 @@ export type MarginValue = Required<MarginConfig>;
 export type MarginGetter = Accessor<MarginValue>;
 export type MarginSetter = Setter<MarginValue>;
 export declare const pick_color_iter: Generator<string, void, number | undefined>;
-export declare class FrameSplit implements Required<DimensionXGetter & DimensionYGetter> {
+export declare class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>, Hit<FrameSplit> {
     left: Accessor<number>;
     top: Accessor<number>;
     right: Accessor<number>;

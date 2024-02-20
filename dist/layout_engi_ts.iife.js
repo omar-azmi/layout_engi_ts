@@ -1170,6 +1170,7 @@
       const col = x === 0 ? 0 : left_vals.findIndex((left_bound) => x <= left_bound) - 1, row = y === 0 ? 0 : top_vals.findIndex((top_bound) => y <= top_bound) - 1;
       return [row, col];
     }
+    // TODO: add methods for swapping rows and columns
     // TODO: implement this debug-only method, with an implementation similar to {@link FrameSplit.toPreview}
     toPreview(ctx, color) {
     }
@@ -1271,7 +1272,6 @@
       this.children.push(child_framesplit);
       return child_framesplit;
     }
-    // TODO: I think this method belongs either to a subclass, or a separate function that takes `this` as the first argument.
     /** hit test to see if this frame, or any of its deep children, get hit by the `(x, y)` coordinates. <br>
      * the deepest child hit by the hit ray will be returned, and an `undefined` will be returned if nothing was hit.
     */

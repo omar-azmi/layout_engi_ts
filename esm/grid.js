@@ -299,6 +299,7 @@ export class Grid extends SignalingClass {
         row = y === 0 ? 0 : top_vals.findIndex((top_bound) => (y <= top_bound)) - 1;
         return [row, col];
     }
+    // TODO: add methods for swapping rows and columns
     // TODO: implement this debug-only method, with an implementation similar to {@link FrameSplit.toPreview}
     toPreview(ctx, color) { }
 }

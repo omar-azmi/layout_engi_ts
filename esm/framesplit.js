@@ -1,3 +1,13 @@
+/** this module provides you with the {@link FrameSplit | `FrameSplit`} class, which lets you create a
+ * reactive frame (box) that can be recursively split from any of its 4-sides.
+ *
+ * @example
+ * ```ts
+ * // TODO
+ * ```
+ *
+ * @module
+*/
 import { constructFrom, max, min, shuffledDeque } from "./deps.js";
 import { parseLengthUnit } from "./funcdefs.js";
 import { createMemo, createStateIfPrimitive } from "./signal.js";
@@ -96,7 +106,6 @@ export class FrameSplit {
         this.children.push(child_framesplit);
         return child_framesplit;
     }
-    // TODO: I think this method belongs either to a subclass, or a separate function that takes `this` as the first argument.
     /** hit test to see if this frame, or any of its deep children, get hit by the `(x, y)` coordinates. <br>
      * the deepest child hit by the hit ray will be returned, and an `undefined` will be returned if nothing was hit.
     */
