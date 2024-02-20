@@ -51,18 +51,10 @@ await build({
 				]
 			})
 		),
-		...Object.fromEntries(
-			["mod"].map((submodule_path) => {
-				return [
-					"https://deno.land/x/tsignal_ts@v0.2.2/" + submodule_path + ".ts",
-					{
-						name: "tsignal_ts",
-						version: "^v0.2.2",
-						subPath: submodule_path,
-					}
-				]
-			})
-		),
+		"https://deno.land/x/tsignal_ts@v0.2.2/mod.ts": {
+			name: "tsignal_ts",
+			version: "^v0.2.2",
+		},
 	}
 })
 

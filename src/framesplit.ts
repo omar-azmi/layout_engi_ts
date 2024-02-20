@@ -262,7 +262,7 @@ export class FrameSplit implements Required<DimensionXGetter & DimensionYGetter>
 				setters,
 				position: [left(), top(), right(), bottom()],
 			}
-		for (const key in set) { if (set[key] !== undefined) { setters.push(key) } }
+		for (const key in set) { if (set[key as keyof typeof set] !== undefined) { setters.push(key) } }
 		if (margin) {
 			const { left, top, right, bottom } = margin()
 			obj.margin = [left, top, right, bottom]
