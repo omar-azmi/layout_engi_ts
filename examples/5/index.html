@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>example 5: grid of images, with dynamic loading</title>
+	<!-- <script src="./index.js" type="module"></script> -->
+	<script>
+		globalThis.addEventListener("DOMContentLoaded", async () => {
+			const { grid, app_config, loadAllImages, updateThrottleGetCellFrames_equals, redraw, signalCtx } = await import("./index.js")
+			const parseEventValue_CB = (default_value, callback, event) => {
+				const
+					elem = event.currentTarget,
+					value = parseFloat(elem.value)
+				callback(isFinite(value) ? value : default_value)
+			}
+			const parseEventJsonArray_CB = (default_value, callback, event) => {
+				const
+					elem = event.currentTarget,
+					value = JSON.parse(elem.value),
+					is_valid = Array.isArray(value) && value.length >= 1
+				callback(is_valid ? value : default_value)
+			}
+			const parseEventString_CB = (default_value, callback, event) => {
+				const
+					elem = event.currentTarget,
+					value = elem.value
+				callback(value ?? default_value)
+			}
+
+			const $ = (query) => document.querySelector(query)
+			$("#loading-time").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { app_config.loading = val })
+			$("#throttle-time").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { app_config.throttle = val })
+			$("#trailing-time").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { app_config.trail = val })
+			$("#maxcols").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { app_config.max_cols = val })
+			$("#reload-images").onclick = (event) => {
+				updateThrottleGetCellFrames_equals(app_config.trail, app_config.throttle)
+				loadAllImages(app_config.loading)
+				for (let row = 0; row < grid.rows; row++) {
+					for (let col = 0; col < grid.cols; col++) {
+						grid.setCell(row, col, {})
+					}
+				}
+			}
+			$("#redraw-canvas").onclick = redraw
+
+			$("#originalign-input").oninput = parseEventString_CB.bind(undefined, "top-right", (val) => { grid.originAlign = val; grid.setDirty() })
+			$("#colalign-input").oninput = parseEventJsonArray_CB.bind(undefined, [ "end" ], (val) => { grid.colAlign = val; grid.setDirty() })
+			$("#rowalign-input").oninput = parseEventJsonArray_CB.bind(undefined, [ "center" ], (val) => { grid.rowAlign = val; grid.setDirty() })
+			$("#colgap-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 30 ], (val) => { grid.colGap = val; grid.setDirty() })
+			$("#rowgap-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 30 ], (val) => { grid.rowGap = val; grid.setDirty() })
+			$("#recompute-grid").onclick = () => grid.setDirty()
+
+			$("#colminwidth-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 0 ], (val) => { grid.colMinWidth = val; grid.setDirty() })
+			$("#rowminheight-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 0 ], (val) => { grid.rowMinHeight = val; grid.setDirty() })
+			$("#colmaxwidth-input").oninput = parseEventJsonArray_CB.bind(undefined, [ Number.POSITIVE_INFINITY ], (val) => { grid.colMaxWidth = val; grid.setDirty() })
+			$("#rowmaxheight-input").oninput = parseEventJsonArray_CB.bind(undefined, [ Number.POSITIVE_INFINITY ], (val) => { grid.rowMaxHeight = val; grid.setDirty() })
+
+			const current_col_offset_text = $("#col-offset-input")
+			let column_mutation_amount = 1
+			$("#col-mutation-amount-input").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { column_mutation_amount = val })
+			$("#pushcols-button").onclick = () => {
+				grid.pushCol(column_mutation_amount)
+				current_col_offset_text.value = app_config.col_offset
+			}
+			$("#unshiftcols-button").onclick = () => {
+				grid.unshiftCol(column_mutation_amount)
+				current_col_offset_text.value = app_config.col_offset
+			}
+			$("#popcols-button").onclick = () => {
+				grid.popCol(column_mutation_amount)
+				current_col_offset_text.value = app_config.col_offset
+			}
+			$("#shiftcols-button").onclick = () => {
+				grid.shiftCol(column_mutation_amount)
+				current_col_offset_text.value = app_config.col_offset
+			}
+
+			console.log(signalCtx)
+			Object.assign(globalThis, { grid, app_config, signalCtx })
+		})
+	</script>
+	<style>
+		body {
+			width: 100vw;
+			height: 100vh;
+			font-family: monospace;
+		}
+
+		span {
+			display: inline-block;
+			width: 12rem;
+		}
+
+		input {
+			width: 11.5rem;
+		}
+
+		input.collapsible-toggle {
+			display: none;
+		}
+
+		label.collapsible-toggle {
+			user-select: none;
+			display: inline-block;
+			width: 6em;
+			border: 1px solid black;
+			text-align: center;
+		}
+
+		.collapsible-content {
+			width: fit-content;
+		}
+
+		.collapsible>.collapsible-toggle:checked+.collapsible-content {
+			display: none;
+		}
+
+		canvas {
+			cursor: pointer;
+		}
+	</style>
+</head>
+
+<body style="width: 100vw; height: 100vh;">
+	<div class="collapsible">
+		<label for="collapsible-toggle-1" class="collapsible-toggle">collapse</label>
+		<input id="collapsible-toggle-1" class="collapsible-toggle" type="checkbox">
+		<span class="collapsible-content">
+			<span>
+				<div>simulate loading time</div>
+				<div><input id="loading-time" value="1000"></div>
+			</span>
+			<span>
+				<div>redraw throttle time</div>
+				<div><input id="throttle-time" value="200"></div>
+			</span>
+			<span>
+				<div>redraw trailing time</div>
+				<div><input id="trailing-time" value="500"></div>
+			</span>
+			<span>
+				<div>maximum columns</div>
+				<div><input id="maxcols" value="7"></div>
+			</span>
+			<span>
+				<div>reload all images</div>
+				<div><button id="reload-images">reload all images</button></div>
+			</span>
+			<span>
+				<div>redraw canvas</div>
+				<div><button id="redraw-canvas">redraw canvas</button></div>
+			</span>
+		</span>
+	</div>
+
+	<hr>
+
+	<div class="collapsible">
+		<label for="collapsible-toggle-2" class="collapsible-toggle">collapse</label>
+		<input id="collapsible-toggle-2" class="collapsible-toggle" type="checkbox">
+		<span class="collapsible-content">
+			<span>
+				<div>origin alignment. pick a string combination of: "top", "left", "bottom", "right"</div>
+				<div><input id="originalign-input" value="top-right"></div>
+			</span>
+			<span>
+				<div>column alignment array</div>
+				<div><input id="colalign-input" value='["end"]'></div>
+			</span>
+			<span>
+				<div>row alignment array</div>
+				<div><input id="rowalign-input" value="[0.5]"></div>
+			</span>
+			<span>
+				<div>column gap array</div>
+				<div><input id="colgap-input" value="[30]"></div>
+			</span>
+			<span>
+				<div>row gap array</div>
+				<div><input id="rowgap-input" value="[30]"></div>
+			</span>
+
+			<br>
+
+			<span>
+				<div>column minwidth array</div>
+				<div><input id="colminwidth-input" value="[0]"></div>
+			</span>
+			<span>
+				<div>row minheight array</div>
+				<div><input id="rowminheight-input" value="[0]"></div>
+			</span>
+			<span>
+				<div>column maxwidth array</div>
+				<div><input id="colmaxwidth-input" value="[10000]"></div>
+			</span>
+			<span>
+				<div>row maxheight array</div>
+				<div><input id="rowmaxheight-input" value="[10000]"></div>
+			</span>
+			<span>
+				<div>recompute grid</div>
+				<div><button id="recompute-grid">recompute grid</button></div>
+			</span>
+		</span>
+	</div>
+
+	<hr>
+
+	<div class="collapsible">
+		<label for="collapsible-toggle-3" class="collapsible-toggle">collapse</label>
+		<input id="collapsible-toggle-3" class="collapsible-toggle" type="checkbox">
+		<span class="collapsible-content">
+			<span>
+				<div>amount of columns</div>
+				<div><input id="col-mutation-amount-input" value="1" type="number" min="0" max="100"></div>
+			</span>
+			<span>
+				<div>push columns</div>
+				<div><button id="pushcols-button">push columns</button></div>
+			</span>
+			<span>
+				<div>unshift columns</div>
+				<div><button id="unshiftcols-button">unshift columns</button></div>
+			</span>
+			<span>
+				<div>pop columns</div>
+				<div><button id="popcols-button">pop columns</button></div>
+			</span>
+			<span>
+				<div>shift columns</div>
+				<div><button id="shiftcols-button">shift columns</button></div>
+			</span>
+			<span>
+				<div>current column offset</div>
+				<div><input id="col-offset-input" value="0" disabled></div>
+			</span>
+		</span>
+	</div>
+
+	<hr>
+
+	<div>click on one of the cells to highlight its sprite's rectangle</div>
+</body>
+
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>example 4: grid of images, with configuration</title>
+	<!-- <script src="./index.js" type="module"></script> -->
+	<script>
+		globalThis.addEventListener("DOMContentLoaded", async () => {
+			const { grid, app_config, loadAllImages, updateThrottleGetCellFrames_equals, redraw, signalCtx } = await import("./index.js")
+			const parseEventValue_CB = (default_value, callback, event) => {
+				const
+					elem = event.currentTarget,
+					value = parseFloat(elem.value)
+				callback(isFinite(value) ? value : default_value)
+			}
+			const parseEventJsonArray_CB = (default_value, callback, event) => {
+				const
+					elem = event.currentTarget,
+					value = JSON.parse(elem.value),
+					is_valid = Array.isArray(value) && value.length >= 1
+				callback(is_valid ? value : default_value)
+			}
+			const parseEventString_CB = (default_value, callback, event) => {
+				const
+					elem = event.currentTarget,
+					value = elem.value
+				callback(value ?? default_value)
+			}
+
+			const $ = (query) => document.querySelector(query)
+			$("#loading-time").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { app_config.loading = val })
+			$("#throttle-time").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { app_config.throttle = val })
+			$("#trailing-time").oninput = parseEventValue_CB.bind(undefined, 0, (val) => { app_config.trail = val })
+			$("#reload-images").onclick = (event) => {
+				updateThrottleGetCellFrames_equals(app_config.trail, app_config.throttle)
+				loadAllImages(app_config.loading)
+				for (let row = 0; row < grid.rows; row++) {
+					for (let col = 0; col < grid.cols; col++) {
+						grid.setCell(row, col, {})
+					}
+				}
+			}
+			$("#redraw-canvas").onclick = redraw
+
+			$("#originalign-input").oninput = parseEventString_CB.bind(undefined, "top-right", (val) => { grid.originAlign = val; grid.setDirty() })
+			$("#colalign-input").oninput = parseEventJsonArray_CB.bind(undefined, [ "end" ], (val) => { grid.colAlign = val; grid.setDirty() })
+			$("#rowalign-input").oninput = parseEventJsonArray_CB.bind(undefined, [ "center" ], (val) => { grid.rowAlign = val; grid.setDirty() })
+			$("#colgap-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 30 ], (val) => { grid.colGap = val; grid.setDirty() })
+			$("#rowgap-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 30 ], (val) => { grid.rowGap = val; grid.setDirty() })
+			$("#recompute-grid").onclick = () => grid.setDirty()
+
+			$("#colminwidth-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 0 ], (val) => { grid.colMinWidth = val; grid.setDirty() })
+			$("#rowminheight-input").oninput = parseEventJsonArray_CB.bind(undefined, [ 0 ], (val) => { grid.rowMinHeight = val; grid.setDirty() })
+			$("#colmaxwidth-input").oninput = parseEventJsonArray_CB.bind(undefined, [ Number.POSITIVE_INFINITY ], (val) => { grid.colMaxWidth = val; grid.setDirty() })
+			$("#rowmaxheight-input").oninput = parseEventJsonArray_CB.bind(undefined, [ Number.POSITIVE_INFINITY ], (val) => { grid.rowMaxHeight = val; grid.setDirty() })
+
+			Object.assign(globalThis, { grid, app_config, signalCtx })
+		})
+	</script>
+	<style>
+		body {
+			width: 100vw;
+			height: 100vh;
+			font-family: monospace;
+		}
+
+		span {
+			display: inline-block;
+			width: 12rem;
+		}
+
+		input {
+			width: 11.5rem;
+		}
+
+		canvas {
+			cursor: pointer;
+		}
+	</style>
+</head>
+
+<body style="width: 100vw; height: 100vh;">
+	<span>
+		<div>simulate loading time</div>
+		<div><input id="loading-time" value="3000"></div>
+	</span>
+	<span>
+		<div>redraw throttle time</div>
+		<div><input id="throttle-time" value="200"></div>
+	</span>
+	<span>
+		<div>redraw trailing time</div>
+		<div><input id="trailing-time" value="500"></div>
+	</span>
+	<span>
+		<div>reload all images</div>
+		<div><button id="reload-images">reload all images</button></div>
+	</span>
+	<span>
+		<div>redraw canvas</div>
+		<div><button id="redraw-canvas">redraw canvas</button></div>
+	</span>
+	<hr>
+	<span>
+		<div>origin alignment. pick a string combination of: "top", "left", "bottom", "right"</div>
+		<div><input id="originalign-input" value="top-right"></div>
+	</span>
+	<span>
+		<div>column alignment array</div>
+		<div><input id="colalign-input" value='["end"]'></div>
+	</span>
+	<span>
+		<div>row alignment array</div>
+		<div><input id="rowalign-input" value="[0.5]"></div>
+	</span>
+	<span>
+		<div>column gap array</div>
+		<div><input id="colgap-input" value="[30]"></div>
+	</span>
+	<span>
+		<div>row gap array</div>
+		<div><input id="rowgap-input" value="[30]"></div>
+	</span>
+	<br>
+	<span>
+		<div>column minwidth array</div>
+		<div><input id="colminwidth-input" value="[0]"></div>
+	</span>
+	<span>
+		<div>row minheight array</div>
+		<div><input id="rowminheight-input" value="[0]"></div>
+	</span>
+	<span>
+		<div>column maxwidth array</div>
+		<div><input id="colmaxwidth-input" value="[10000]"></div>
+	</span>
+	<span>
+		<div>row maxheight array</div>
+		<div><input id="rowmaxheight-input" value="[10000]"></div>
+	</span>
+	<span>
+		<div>recompute grid</div>
+		<div><button id="recompute-grid">recompute grid</button></div>
+	</span>
+	<hr>
+	<div>click on one of the cells to highlight its sprite's rectangle</div>
+</body>
+
+</html>
