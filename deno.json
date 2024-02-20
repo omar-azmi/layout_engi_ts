@@ -1,9 +1,9 @@
 {
 	"name": "layout_engi_ts",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "a crappy reactive layout engine",
 	"author": "Omar Azmi",
-	"license": "Lulz plz don't steal yet",
+	"license": "Anti-Competition License",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/omar-azmi/layout_engi_ts.git"

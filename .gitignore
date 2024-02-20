@@ -9,3 +9,7 @@
 # automatic file clones
 /.github/readme.md
 /license.md
+
+# documentation and examples asset files
+/examples/assets/grid_images/*
+!/examples/assets/grid_images/.gitkeep

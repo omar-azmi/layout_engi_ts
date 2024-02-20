@@ -1,7 +1,7 @@
 import { copy as copyFolder, ensureFile } from "https://deno.land/std@0.204.0/fs/mod.ts"
 import { dirname as pathDirname, join as pathJoin } from "https://deno.land/std@0.204.0/path/mod.ts"
 import { Application as typedocApp } from "npm:typedoc"
-import { TemporaryFiles, createNPMFiles, doubleCompileFiles, getDenoJson, mainEntrypoint, subEntrypoints } from "./build_tools.ts"
+import { TemporaryFiles, createNPMFiles, doubleCompileFiles, getDenoJson, mainEntrypoint, subEntrypoints, walkDir } from "./build_tools.ts"
 
 
 /** use:
@@ -12,6 +12,8 @@ const site_root = Deno.args[0] ?? "/"
 const docs_output_dir = "./docs/"
 const docs_src_output_dir = "./docs/src/"
 const docs_dist_output_dir = "./docs/dist/"
+const example_files_dir = "./examples/"
+const extra_directories_to_copy = ["./examples/assets/"]
 
 
 interface CustomCSS_Artifacts extends TemporaryFiles {
@@ -47,6 +49,7 @@ const typedoc_app = await typedocApp.bootstrapWithPlugins({
 		"github": repository.url.replace("git+", "").replace(".git", ""),
 		"readme": site_root,
 		"source": site_root + "src/mod.ts",
+		"examples": site_root + "examples/index.html",
 		"distribution": site_root + "dist/esm.js",
 	},
 	skipErrorChecking: true,
@@ -74,8 +77,8 @@ await copyFolder("./src/", docs_src_output_dir, { overwrite: true })
 // copy the compiled distribution files in the docs' "dist" sub directory, so that it can be hosted on github pages similar to a cdn
 // assuming `site_root` is the root url of the hosted site, `${site_root}/dist/*.js` will contain various bundled javascript distributions
 const
-	js_dist = (await doubleCompileFiles("./src/mod.ts", docs_dist_output_dir, {}, { minify: false }))[0],
-	js_dist_minified = (await doubleCompileFiles("./src/mod.ts", docs_dist_output_dir, {}, { minify: true }))[0]
+	js_dist = (await doubleCompileFiles("./src/mod.ts", docs_dist_output_dir, {}, { minify: false }, false))[0],
+	js_dist_minified = (await doubleCompileFiles("./src/mod.ts", docs_dist_output_dir, {}, { minify: true }, false))[0]
 js_dist.path = pathJoin(pathDirname(js_dist.path), "./esm.js")
 js_dist_minified.path = pathJoin(pathDirname(js_dist_minified.path), "./esm.min.js")
 const output_dist_files = [js_dist, js_dist_minified]
@@ -85,6 +88,49 @@ await Promise.all(output_dist_files.map(
 		await Deno.writeTextFile(path, text)
 	}
 ))
+
+// compile example files, and copy them over
+const example_ts_files = []
+const example_html_files = []
+for await (const { path } of walkDir(example_files_dir, { exts: [".ts", ".html"], includeDirs: false })) {
+	if (path.endsWith(".ts")) { example_ts_files.push(path) }
+	else if (path.endsWith(".html")) { example_html_files.push(path) }
+}
+const example_ts_files_compiled = await doubleCompileFiles("", pathJoin(docs_output_dir, example_files_dir),
+	{
+		entryPoints: example_ts_files,
+		outbase: example_files_dir,
+		bundle: true,
+		splitting: true,
+		platform: "browser",
+	},
+	{ minify: true },
+)
+console.log("writing the following transpiled files:", example_ts_files_compiled.map((out_file) => out_file.path))
+await Promise.all(example_ts_files_compiled.map(
+	async ({ text, path }, file_number) => {
+		await ensureFile(path)
+		await Deno.writeTextFile(path, text)
+	}
+))
+await Promise.all(example_html_files.map(
+	async (path) => {
+		const text = await Deno.readTextFile(path)
+		const output_path = pathJoin(docs_output_dir, path)
+		await ensureFile(output_path)
+		await Deno.writeTextFile(output_path, text.replaceAll(/\.ts\"/gm, ".js\""))
+	}
+))
+await Promise.all(extra_directories_to_copy.map(
+	async (path) => {
+		await copyFolder(path, pathJoin(docs_output_dir, path), { overwrite: true })
+	}
+))
+await Deno.writeTextFile(pathJoin(docs_output_dir, ".gitignore"), `
+# documentation and examples asset files
+/examples/assets/grid_images/*
+!/examples/assets/grid_images/.gitkeep
+`, { append: true })
 
 await npm_file_artifacts.cleanup()
 await custom_css_artifacts.cleanup()
