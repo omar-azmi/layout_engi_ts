@@ -632,6 +632,7 @@ var Grid = class extends SignalingClass {
     let col = x === 0 ? 0 : left_vals.findIndex((left_bound) => x <= left_bound) - 1;
     return [y === 0 ? 0 : top_vals.findIndex((top_bound) => y <= top_bound) - 1, col];
   }
+  // TODO: add methods for swapping rows and columns
   // TODO: implement this debug-only method, with an implementation similar to {@link FrameSplit.toPreview}
   toPreview(ctx, color) {
   }
@@ -697,7 +698,6 @@ var ltrb_iter = ["left", "top", "right", "bottom"], colors = ["aqua", "aquamarin
     }), child_framesplit = constructFrom(this, left, child_top, right, child_bottom);
     return child_framesplit.margin = getMargin, child_framesplit.height = getHeight, child_framesplit.set.margin = setMargin, child_framesplit.set.height = setHeight, freespace.bottom = createMemo((id) => max(child_top(id) + getMargin(id).top, top(id))), this.children.push(child_framesplit), child_framesplit;
   }
-  // TODO: I think this method belongs either to a subclass, or a separate function that takes `this` as the first argument.
   /** hit test to see if this frame, or any of its deep children, get hit by the `(x, y)` coordinates. <br>
    * the deepest child hit by the hit ray will be returned, and an `undefined` will be returned if nothing was hit.
   */

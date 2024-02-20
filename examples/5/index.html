@@ -97,24 +97,28 @@
 			width: 11.5rem;
 		}
 
-		input.collapsible-toggle {
-			display: none;
+		details {
+			display: block;
 		}
 
-		label.collapsible-toggle {
+		details>summary {
 			user-select: none;
-			display: inline-block;
-			width: 6em;
 			border: 1px solid black;
+			width: 5.5rem;
 			text-align: center;
+			margin-inline-end: 0.5rem;
 		}
 
-		.collapsible-content {
-			width: fit-content;
+		details>summary::before {
+			content: "expand";
 		}
 
-		.collapsible>.collapsible-toggle:checked+.collapsible-content {
-			display: none;
+		details[open]>summary::before {
+			content: "collapse";
+		}
+
+		details[open]>summary {
+			display: inline-block;
 		}
 
 		canvas {
@@ -124,43 +128,39 @@
 </head>
 
 <body style="width: 100vw; height: 100vh;">
-	<div class="collapsible">
-		<label for="collapsible-toggle-1" class="collapsible-toggle">collapse</label>
-		<input id="collapsible-toggle-1" class="collapsible-toggle" type="checkbox">
-		<span class="collapsible-content">
-			<span>
-				<div>simulate loading time</div>
-				<div><input id="loading-time" value="1000"></div>
-			</span>
-			<span>
-				<div>redraw throttle time</div>
-				<div><input id="throttle-time" value="200"></div>
-			</span>
-			<span>
-				<div>redraw trailing time</div>
-				<div><input id="trailing-time" value="500"></div>
-			</span>
-			<span>
-				<div>maximum columns</div>
-				<div><input id="maxcols" value="7"></div>
-			</span>
-			<span>
-				<div>reload all images</div>
-				<div><button id="reload-images">reload all images</button></div>
-			</span>
-			<span>
-				<div>redraw canvas</div>
-				<div><button id="redraw-canvas">redraw canvas</button></div>
-			</span>
+	<details open>
+		<summary></summary>
+		<span>
+			<div>simulate loading time</div>
+			<div><input id="loading-time" value="1000"></div>
 		</span>
-	</div>
+		<span>
+			<div>redraw throttle time</div>
+			<div><input id="throttle-time" value="200"></div>
+		</span>
+		<span>
+			<div>redraw trailing time</div>
+			<div><input id="trailing-time" value="500"></div>
+		</span>
+		<span>
+			<div>maximum columns</div>
+			<div><input id="maxcols" value="7"></div>
+		</span>
+		<span>
+			<div>reload all images</div>
+			<div><button id="reload-images">reload all images</button></div>
+		</span>
+		<span>
+			<div>redraw canvas</div>
+			<div><button id="redraw-canvas">redraw canvas</button></div>
+		</span>
+	</details>
 
 	<hr>
 
-	<div class="collapsible">
-		<label for="collapsible-toggle-2" class="collapsible-toggle">collapse</label>
-		<input id="collapsible-toggle-2" class="collapsible-toggle" type="checkbox">
-		<span class="collapsible-content">
+	<details open>
+		<summary></summary>
+		<span style="width: auto;">
 			<span>
 				<div>origin alignment. pick a string combination of: "top", "left", "bottom", "right"</div>
 				<div><input id="originalign-input" value="top-right"></div>
@@ -205,40 +205,37 @@
 				<div><button id="recompute-grid">recompute grid</button></div>
 			</span>
 		</span>
-	</div>
+	</details>
 
 	<hr>
 
-	<div class="collapsible">
-		<label for="collapsible-toggle-3" class="collapsible-toggle">collapse</label>
-		<input id="collapsible-toggle-3" class="collapsible-toggle" type="checkbox">
-		<span class="collapsible-content">
-			<span>
-				<div>amount of columns</div>
-				<div><input id="col-mutation-amount-input" value="1" type="number" min="0" max="100"></div>
-			</span>
-			<span>
-				<div>push columns</div>
-				<div><button id="pushcols-button">push columns</button></div>
-			</span>
-			<span>
-				<div>unshift columns</div>
-				<div><button id="unshiftcols-button">unshift columns</button></div>
-			</span>
-			<span>
-				<div>pop columns</div>
-				<div><button id="popcols-button">pop columns</button></div>
-			</span>
-			<span>
-				<div>shift columns</div>
-				<div><button id="shiftcols-button">shift columns</button></div>
-			</span>
-			<span>
-				<div>current column offset</div>
-				<div><input id="col-offset-input" value="0" disabled></div>
-			</span>
+	<details open>
+		<summary></summary>
+		<span>
+			<div>amount of columns</div>
+			<div><input id="col-mutation-amount-input" value="1" type="number" min="0" max="100"></div>
 		</span>
-	</div>
+		<span>
+			<div>push columns</div>
+			<div><button id="pushcols-button">push columns</button></div>
+		</span>
+		<span>
+			<div>unshift columns</div>
+			<div><button id="unshiftcols-button">unshift columns</button></div>
+		</span>
+		<span>
+			<div>pop columns</div>
+			<div><button id="popcols-button">pop columns</button></div>
+		</span>
+		<span>
+			<div>shift columns</div>
+			<div><button id="shiftcols-button">shift columns</button></div>
+		</span>
+		<span>
+			<div>current column offset</div>
+			<div><input id="col-offset-input" value="0" disabled></div>
+		</span>
+	</details>
 
 	<hr>
 
