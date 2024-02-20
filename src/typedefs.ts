@@ -4,29 +4,38 @@ import { Accessor } from "./deps.ts"
 export type UnitNumber = number
 
 export interface SizedRect {
+	/** width of a sprite or rectangle. */
 	width: number
+	/** height of a sprite or rectangle. */
 	height: number
 }
 
 export interface PositionedRect {
+	/** x-position of a sprite or a rectangle, relative to its parent container. */
 	x: number
+	/** y-position of a sprite or a rectangle, relative to its parent container. */
 	y: number
 }
 
 export interface RotatedRect {
-	/** describes rotation of a rectangle relative to its own center.
-	 * the rotation should be applied *after* the rectangle has been positioned at its `(x, y)` coordinates.
+	/** describes clockwise-rotation of a rectangle relative to its own center in radians.
+	 * the rotation should be applied *after* the rectangle has been positioned at its `(x, y)` coordinates. <br>
+	 * the constraint for rotating about the center is enforced so that the positioning of the rectangle is invariant to the choice of the rotation. <br>
+	 * the constraint for applying the rotation *after* positioning it, is enforced so that there is no ambiguity in the ordering of the two procedures.
 	*/
 	rotation: number
 }
 
 export type Sprite = SizedRect & PositionedRect & Partial<RotatedRect>
 
-// TODO: consider whether or not the callback argument has any value to it, or if it can be discarded, or perhaps it my be a bad programming pattern
+// TODO: consider whether or not the `callback?: () => void` argument has any value to it, or if it can be discarded, or perhaps it my be a bad programming pattern
+/** an abstract interface implemented by layout classes that support hit tests. */
 export interface Hit<T> {
-	hit(x: number, y: number, callback?: () => void): T | undefined
+	/** an abstraction of the hit method. */
+	hit(x: number, y: number): T | undefined
 }
 
+/** an abstract interface implemented by layout classes that support rendering (possibly just for the sake of debugging). */
 export interface Render {
 	render(ctx: CanvasRenderingContext2D): void
 }

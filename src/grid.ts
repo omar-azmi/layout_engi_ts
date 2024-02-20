@@ -505,6 +505,8 @@ export class Grid extends SignalingClass implements NonNullable<GridInit>, Hit<[
 		return [row, col]
 	}
 
+	// TODO: add methods for swapping rows and columns
+
 	// TODO: implement this debug-only method, with an implementation similar to {@link FrameSplit.toPreview}
 	toPreview(ctx: CanvasRenderingContext2D, color?: string) { }
 }
