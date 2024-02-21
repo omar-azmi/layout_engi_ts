@@ -19,3 +19,5 @@ jobs:
 
       - name: build-docs and commit github-pages
         uses: ./.github/actions/build-docs
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
