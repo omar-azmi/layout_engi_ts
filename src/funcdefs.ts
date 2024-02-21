@@ -1,6 +1,5 @@
-import { cumulativeSum, math_abs, math_cos, math_sin, number_isFinite } from "./deps.ts"
-import { SizedRect } from "./typedefs.ts"
-import { AlignOption, AnyLength, LengthUnit, LengthUnitLiteral, UnitNumber } from "./typedefs.ts"
+import { math_abs, math_cos, math_sin, number_isFinite } from "./deps.ts"
+import { AlignOption, AnyLength, LengthUnit, LengthUnitLiteral, SizedRect, UnitNumber } from "./typedefs.ts"
 
 
 /// Grid related functions
@@ -26,18 +25,6 @@ export const alignmentToNumber = (alignment: AlignOption, reverse: boolean = fal
 export const parseAlignments = (alignments: AlignOption | AlignOption[], reverse: boolean = false): UnitNumber[] => {
 	alignments = Array.isArray(alignments) ? alignments : [alignments]
 	return alignments.map((v) => alignmentToNumber(v, reverse))
-}
-
-/** a cumulative numeric sum that excludes the last number in the sum.
- * @example
- * ```ts
- * zeroCumulativeSum([10, 20, 30, 40, 50]) // returns [0, 10, 30, 60, 100]
- * ```
-*/
-export const zeroCumulativeSum = (arr: number[]): number[] => {
-	const cum_sum = cumulativeSum(arr)
-	cum_sum.pop()
-	return cum_sum
 }
 
 /** get the bounding box width and height of a rectangle that has been rotated at its center */

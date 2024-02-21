@@ -336,10 +336,7 @@ var shuffleArray = (arr) => {
   for (; !array_isEmpty(arr); )
     i >= arr.length && (i = 0, shuffleArray(arr)), i = max(i + ((yield arr[i]) ?? 1), 0);
 };
-var alignmentToNumber = (alignment, reverse = false) => (typeof alignment == "string" && (alignment = alignment === "start" ? 0 : alignment === "end" ? 1 : 0.5), reverse ? 1 - alignment : alignment), parseAlignments = (alignments, reverse = false) => (alignments = Array.isArray(alignments) ? alignments : [alignments], alignments.map((v) => alignmentToNumber(v, reverse))), zeroCumulativeSum = (arr) => {
-  let cum_sum = cumulativeSum(arr);
-  return cum_sum.pop(), cum_sum;
-}, boundboxOfRotatedRect = (width, height, rotation) => {
+var alignmentToNumber = (alignment, reverse = false) => (typeof alignment == "string" && (alignment = alignment === "start" ? 0 : alignment === "end" ? 1 : 0.5), reverse ? 1 - alignment : alignment), parseAlignments = (alignments, reverse = false) => (alignments = Array.isArray(alignments) ? alignments : [alignments], alignments.map((v) => alignmentToNumber(v, reverse))), boundboxOfRotatedRect = (width, height, rotation) => {
   if (!rotation)
     return { width, height };
   let abs_cos_rot = math_abs(math_cos(rotation)), abs_sin_rot = math_abs(math_sin(rotation));
@@ -754,6 +751,5 @@ export {
   pick_color_iter,
   signalCtx,
   stringifyLengthUnit,
-  throttlingEquals,
-  zeroCumulativeSum
+  throttlingEquals
 };
