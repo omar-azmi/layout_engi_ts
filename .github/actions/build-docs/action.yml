@@ -12,8 +12,18 @@ runs:
       shell: bash
       run: deno task build-docs "/layout_engi_ts/"
 
-    - name: deploy github pages
-      uses: JamesIves/github-pages-deploy-action@v4
-      with:
-        branch: gh-pages
-        folder: docs
+    - name: add clear-list-file in order to ignore deletion of the /examples/assets/ folder
+      shell: bash
+      run: |
+        echo "**/*" >> ./.clear-target-files.txt
+        echo "!.git" >> ./.clear-target-files.txt
+        echo "!examples/assets/grid_images/*" >> ./.clear-target-files.txt
+
+    - name: create gh-pages branch
+      uses: s0/git-publish-subdir-action@develop
+      env:
+        REPO: self
+        BRANCH: gh-pages
+        FOLDER: docs
+        CLEAR_GLOBS_FILE: ".clear-target-files"
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}

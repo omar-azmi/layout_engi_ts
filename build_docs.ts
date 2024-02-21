@@ -126,11 +126,6 @@ await Promise.all(extra_directories_to_copy.map(
 		await copyFolder(path, pathJoin(docs_output_dir, path), { overwrite: true })
 	}
 ))
-await Deno.writeTextFile(pathJoin(docs_output_dir, ".gitignore"), `
-# documentation and examples asset files
-/examples/assets/grid_images/*
-!/examples/assets/grid_images/.gitkeep
-`, { append: true })
 
 await npm_file_artifacts.cleanup()
 await custom_css_artifacts.cleanup()
