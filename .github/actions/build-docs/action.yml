@@ -1,5 +1,9 @@
 name: action-build-docs
 description: "builds the documentation folder and commits it to the github pages branch"
+inputs:
+  GITHUB_TOKEN:
+    required: true
+    description: "github token that would allow for publishing of git branch"
 
 runs:
   using: composite
@@ -25,5 +29,5 @@ runs:
         REPO: self
         BRANCH: gh-pages
         FOLDER: docs
-        CLEAR_GLOBS_FILE: ".clear-target-files"
+        CLEAR_GLOBS_FILE: ".clear-target-files.txt"
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
