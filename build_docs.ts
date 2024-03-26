@@ -1,7 +1,8 @@
-import { copy as copyFolder, ensureFile } from "https://deno.land/std@0.204.0/fs/mod.ts"
-import { dirname as pathDirname, join as pathJoin } from "https://deno.land/std@0.204.0/path/mod.ts"
-import { Application as typedocApp } from "npm:typedoc"
-import { TemporaryFiles, createNPMFiles, doubleCompileFiles, getDenoJson, mainEntrypoint, subEntrypoints, walkDir } from "./build_tools.ts"
+import { Application as typedocApp } from "npm:typedoc@0.25.9"
+import {
+	TemporaryFiles, copyDir, createNPMFiles, doubleCompileFiles,
+	ensureFile, getDenoJson, pathDirname, pathJoin, walkDir,
+} from "./build_tools.ts"
 
 
 /** use:
@@ -13,7 +14,9 @@ const docs_output_dir = "./docs/"
 const docs_src_output_dir = "./docs/src/"
 const docs_dist_output_dir = "./docs/dist/"
 const example_files_dir = "./examples/"
-const extra_directories_to_copy = ["./examples/assets/"]
+const extra_directories_to_copy = [
+	"./examples/assets/",
+]
 
 
 interface CustomCSS_Artifacts extends TemporaryFiles {
@@ -34,7 +37,8 @@ const createCustomCssFiles = async (base_dir: string = "./", content: string): P
 }
 
 const npm_file_artifacts = await createNPMFiles("./")
-const { repository } = await getDenoJson()
+const { repository, exports } = await getDenoJson()
+const { ".": mainEntrypoint, ...subEntrypoints } = exports
 const custom_css_artifacts = await createCustomCssFiles("./temp/", `
 table { border-collapse: collapse; }
 th { background-color: rgba(128, 128, 128, 0.50); }
@@ -42,9 +46,10 @@ th, td { border: 0.1em solid rgba(0, 0, 0, 0.75); padding: 0.1em; }
 `)
 const custom_css_file_path = pathJoin(custom_css_artifacts.dir, custom_css_artifacts.files[0])
 const typedoc_app = await typedocApp.bootstrapWithPlugins({
-	entryPoints: [mainEntrypoint, ...subEntrypoints],
+	// even though the intermediate `package.json` created by `createNPMFiles` contains the `exports` field, `typedoc` can't figure out the entrypoints on its own.
+	entryPoints: [mainEntrypoint, ...Object.values(subEntrypoints) as never[]],
 	out: docs_output_dir,
-	readme: "./src/readme.md",
+	readme: "./readme.md",
 	navigationLinks: {
 		"github": repository.url.replace("git+", "").replace(".git", ""),
 		"readme": site_root,
@@ -72,7 +77,7 @@ if (typedoc_project) {
 
 // copy the source code to the docs' "src" subdirectory, so that it can be hosted on github pages similar to a cdn
 // assuming `site_root` is the root url of the hosted site, `${site_root}/src/*.ts` will contain all of the source typescript files
-await copyFolder("./src/", docs_src_output_dir, { overwrite: true })
+await copyDir("./src/", docs_src_output_dir, { overwrite: true })
 
 // copy the compiled distribution files in the docs' "dist" sub directory, so that it can be hosted on github pages similar to a cdn
 // assuming `site_root` is the root url of the hosted site, `${site_root}/dist/*.js` will contain various bundled javascript distributions
@@ -92,9 +97,11 @@ await Promise.all(output_dist_files.map(
 // compile example files, and copy them over
 const example_ts_files = []
 const example_html_files = []
-for await (const { path } of walkDir(example_files_dir, { exts: [".ts", ".html"], includeDirs: false })) {
-	if (path.endsWith(".ts")) { example_ts_files.push(path) }
+const example_misc_files = []
+for await (const { path } of walkDir(example_files_dir, { exts: ["index.ts", "index.tsx", ".html", ".css"], includeDirs: false })) {
+	if (path.endsWith(".ts") || path.endsWith(".tsx")) { example_ts_files.push(path) }
 	else if (path.endsWith(".html")) { example_html_files.push(path) }
+	else { example_misc_files.push(path) }
 }
 const example_ts_files_compiled = await doubleCompileFiles("", pathJoin(docs_output_dir, example_files_dir),
 	{
@@ -118,12 +125,17 @@ await Promise.all(example_html_files.map(
 		const text = await Deno.readTextFile(path)
 		const output_path = pathJoin(docs_output_dir, path)
 		await ensureFile(output_path)
-		await Deno.writeTextFile(output_path, text.replaceAll(/\.ts\"/gm, ".js\""))
+		await Deno.writeTextFile(output_path, text.replaceAll(/\.tsx?\"/gm, ".js\""))
 	}
 ))
 await Promise.all(extra_directories_to_copy.map(
 	async (path) => {
-		await copyFolder(path, pathJoin(docs_output_dir, path), { overwrite: true })
+		await copyDir(path, pathJoin(docs_output_dir, path), { overwrite: true })
+	}
+))
+await Promise.all(example_misc_files.map(
+	async (path) => {
+		await copyDir(path, pathJoin(docs_output_dir, path), { overwrite: true })
 	}
 ))
 
